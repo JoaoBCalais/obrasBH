@@ -51,7 +51,7 @@ function processarPowerBIData(csvText: string): Promise<ObraProcessada[]> {
 
         // Remover duplicatas por id_area_empreendimento
         const seen = new Set<string>()
-        const deduped = obras.filter(obra => {
+        const deduped = obras.filter((obra: ObraProcessada) => {
           if (seen.has(obra.id_area_empreendimento)) {
             return false
           }
