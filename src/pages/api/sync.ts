@@ -1,0 +1,316 @@
+import type { NextApiRequest, NextApiResponse } from 'next'
+import { createClient } from '@supabase/supabase-js'
+import Papa from 'papaparse'
+
+/**
+ * API Route: POST /api/sync
+ *
+ * Baixa o CSV CONTRATOS-SGEE.csv do Google Drive da PBH,
+ * parseia e faz upsert na tabela "obras" do Supabase.
+ *
+ * O CSV é codificado em Latin-1 (ISO-8859-1) e usa ; como separador.
+ * Datas vêm no formato YYYY/MM/DD HH:mm:ss.
+ */
+
+const CSV_URL =
+  'https://drive.google.com/uc?export=download&id=11B4Y3IYF31QLle1_7dsI5MELOg5uwLTm&confirm=t'
+
+// --- Helpers ---
+function parseNumber(val: string | undefined): number {
+  if (!val || val.trim() === '') return 0
+  const cleaned = val.replace(/[^\d.,\-]/g, '')
+  if (cleaned.includes(',') && !cleaned.includes('.')) {
+    return parseFloat(cleaned.replace(',', '.')) || 0
+  }
+  if (cleaned.includes(',') && cleaned.includes('.')) {
+    return parseFloat(cleaned.replace(/\./g, '').replace(',', '.')) || 0
+  }
+  return parseFloat(cleaned) || 0
+}
+
+function parseDate(val: string | undefined): string | null {
+  if (!val || val.trim() === '' || val.trim() === '0') return null
+  const trimmed = val.trim().split(' ')[0] // Remover hora
+
+  if (trimmed.includes('/')) {
+    const parts = trimmed.split('/')
+    if (parts.length === 3) {
+      // Detectar formato: se primeira parte tem 4 dígitos → YYYY/MM/DD
+      if (parts[0].length === 4) {
+        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`
+      }
+      // Senão → DD/MM/YYYY
+      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+    }
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+  return null
+}
+
+function parseInt2(val: string | undefined): number {
+  if (!val || val.trim() === '') return 0
+  return parseInt(val.replace(/[^\d\-]/g, ''), 10) || 0
+}
+
+/**
+ * Busca uma coluna pelo início do nome, ignorando caracteres corrompidos por encoding.
+ * Ex: findCol(row, 'Dsc Paralisa') encontra 'Dsc Paralisação' mesmo com encoding quebrado.
+ */
+function findCol(row: Record<string, string>, prefix: string): string {
+  const key = Object.keys(row).find(k => k.startsWith(prefix))
+  return key ? (row[key] || '') : ''
+}
+
+interface CsvRow {
+  [key: string]: string
+}
+
+function csvToObra(row: CsvRow) {
+  const empreendimento = row['Empreendimento'] || ''
+  if (!empreendimento) return null
+
+  return {
+    id_area_empreendimento: empreendimento,
+    numero_po: row['Num Cnt'] || empreendimento,
+    nome: row['Objeto Cnt'] || row['Desc Empreendimento'] || findCol(row, 'Desc Empreendiment') || empreendimento,
+    regional: row['Regional Empreendimento - Descricao'] || row['Regional Empreendimento - Sigla'] || '',
+    status: row['Status Contrato'] || '',
+    empresa: row['Empresa Contratada'] || '',
+    tematica: row['Tipo Cnt'] || '',
+
+    // Financeiros
+    valor_contrato: parseNumber(row['Valor Contrato']),
+    valor_total_medicao: parseNumber(row['Valor Total Medicao']),
+    valor_total_aditivo: parseNumber(row['Valor Total Reajuste']),
+    valor_contrato_com_aditivo: parseNumber(findCol(row, 'Valor Total Medicao E')),
+    vl_total_ultima_renovacao: parseNumber(findCol(row, 'Vl Total') || '0'),
+    vl_total_aditivo_ultima_renovacao: parseNumber(findCol(row, 'Vl Total Aditivo') || '0'),
+
+    // Datas (formato YYYY/MM/DD HH:mm:ss)
+    data_inicio_cnt: parseDate(row['Data Inicio Cnt']),
+    data_fim_cnt_original: parseDate(row['Data Fim Cnt Original']),
+    data_fim_cnt_com_aditivos: parseDate(row['Data Fim Cnt Com Aditivos']),
+    prazo_contratual: parseInt2(row['Prazo Contratual']),
+    numero_dias_aditivados: parseInt2(row['Numero Dias Aditivados']),
+
+    // Contrato
+    num_cnt: row['Num Cnt'] || '',
+    objeto_cnt: row['Objeto Cnt'] || '',
+    tipo_cnt: row['Tipo Cnt'] || '',
+
+    // Paralisação (nomes podem ter encoding quebrado)
+    dsc_paralisacao: findCol(row, 'Dsc Paralisa') || null,
+    motivo_paralisacao: findCol(row, 'Motivo Paralisa') || null,
+  }
+}
+
+/**
+ * Converte linha CSV em registro de paralisação
+ */
+function csvToParalizacao(row: CsvRow, obraId: string) {
+  const dscParalisacao = findCol(row, 'Dsc Paralisa') || ''
+  const motivoParalisacao = findCol(row, 'Motivo Paralisa') || ''
+  const statusParalisacao = row['status_paralisacao']?.trim() || 'Em paralisação'
+  const numCnt = row['Num Cnt']?.trim() || ''
+
+  // Se não tem informação de paralisação, retorna null
+  if (!dscParalisacao && !motivoParalisacao) {
+    return null
+  }
+
+  // Parse da data de paralisação
+  const dataParalisacaoStr = row['data_paralisacao']?.trim()
+  let dataParalisacao = new Date().toISOString().split('T')[0]
+
+  if (dataParalisacaoStr) {
+    const parsedDate = parseDate(dataParalisacaoStr)
+    if (parsedDate) {
+      dataParalisacao = parsedDate
+    }
+  }
+
+  // Parse da data de retomada
+  const dataRetomadaStr = row['data_retomada']?.trim()
+  let dataRetomada = null
+
+  if (dataRetomadaStr) {
+    const parsedDate = parseDate(dataRetomadaStr)
+    if (parsedDate) {
+      dataRetomada = parsedDate
+    }
+  }
+
+  return {
+    id_area_empreendimento: obraId,
+    num_cnt: numCnt || null,
+    numero_paralisacao: 1,
+    data_paralisacao: dataParalisacao,
+    data_retomada: dataRetomada,
+    motivo_paralisacao: motivoParalisacao || null,
+    descricao_paralisacao: dscParalisacao || null,
+    status_paralisacao:
+      statusParalisacao === 'Retomada'
+        ? 'Retomada'
+        : statusParalisacao === 'Cancelada'
+          ? 'Cancelada'
+          : 'Em paralisação',
+  }
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Use POST' })
+  }
+
+  // Proteção simples por chave (opcional)
+  const syncKey = process.env.SYNC_API_KEY
+  if (syncKey && req.headers['x-sync-key'] !== syncKey) {
+    return res.status(401).json({ error: 'Chave inválida' })
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+
+  if (!supabaseUrl || !supabaseKey) {
+    return res.status(500).json({ error: 'Variáveis SUPABASE não configuradas' })
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey)
+
+  try {
+    // 1. Baixar CSV como bytes e decodificar como Latin-1
+    const csvResponse = await fetch(CSV_URL, { redirect: 'follow' })
+    if (!csvResponse.ok) {
+      throw new Error(`Erro ao baixar CSV: ${csvResponse.status}`)
+    }
+
+    const buffer = await csvResponse.arrayBuffer()
+    const csvText = new TextDecoder('latin1').decode(buffer)
+
+    // Verificar se veio HTML (página de confirmação do Drive)
+    if (csvText.trim().startsWith('<!') || csvText.trim().startsWith('<html')) {
+      throw new Error('Google Drive retornou página HTML em vez do CSV. O arquivo pode ter sido movido.')
+    }
+
+    // 2. Detectar separador e parsear CSV
+    // Pegar primeira linha para decidir se é ; ou ,
+    const firstLine = csvText.split('\n')[0] || ''
+    const delimiter = firstLine.includes(';') ? ';' : ','
+
+    const { data, errors: parseErrors } = Papa.parse<CsvRow>(csvText, {
+      header: true,
+      skipEmptyLines: true,
+      delimiter,
+    })
+
+    if (data.length === 0) {
+      throw new Error('CSV vazio ou formato inesperado')
+    }
+
+    // 3. Converter para formato do banco (deduplicar por empreendimento — CSV pode ter linhas repetidas)
+    const obrasMap = new Map<string, NonNullable<ReturnType<typeof csvToObra>>>()
+    for (const row of data) {
+      const obra = csvToObra(row)
+      if (obra) {
+        obrasMap.set(obra.id_area_empreendimento, obra) // Último registro vence
+      }
+    }
+    const obras = Array.from(obrasMap.values())
+
+    // 4. Upsert em lotes
+    const BATCH_SIZE = 50
+    let inserted = 0
+    let errorsCount = 0
+    const errorMessages: string[] = []
+
+    for (let i = 0; i < obras.length; i += BATCH_SIZE) {
+      const batch = obras.slice(i, i + BATCH_SIZE)
+      const { error } = await supabase
+        .from('obras')
+        .upsert(batch, {
+          onConflict: 'id_area_empreendimento',
+          ignoreDuplicates: false,
+        })
+
+      if (error) {
+        errorsCount++
+        errorMessages.push(`Lote ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message}`)
+      } else {
+        inserted += batch.length
+      }
+    }
+
+    // 5. Sincronizar paralizações
+    // Primeiro: DELETAR todas as paralizações antigas
+    const { error: deleteError } = await supabase
+      .from('paralizacoes')
+      .delete()
+      .neq('id', -1) // Truque para deletar tudo
+
+    if (deleteError && deleteError.code !== 'PGRST116') {
+      console.warn('Aviso ao deletar paralizações antigas:', deleteError)
+    }
+
+    // Segundo: Deduplicate paralizações (usar a última linha para cada obra)
+    const paralizacoesMap = new Map<string, any>()
+
+    for (const row of data) {
+      const obraId = row['Empreendimento'] || ''
+      if (!obraId) continue
+
+      const paralizacao = csvToParalizacao(row, obraId)
+      if (paralizacao) {
+        // Sobrescreve com o último valor encontrado
+        paralizacoesMap.set(obraId, paralizacao)
+      }
+    }
+
+    const paralizacoesUpsert = Array.from(paralizacoesMap.values())
+
+    let paralizacoesInseridas = 0
+    if (paralizacoesUpsert.length > 0) {
+      const { error: erroParalizacoes } = await supabase
+        .from('paralizacoes')
+        .upsert(paralizacoesUpsert, {
+          onConflict: 'id_area_empreendimento,numero_paralisacao',
+        })
+
+      if (erroParalizacoes) {
+        console.error('Erro ao sincronizar paralizações:', erroParalizacoes)
+        errorMessages.push(`Paralizações: ${erroParalizacoes.message}`)
+      } else {
+        paralizacoesInseridas = paralizacoesUpsert.length
+        console.log(`✅ Sincronizadas ${paralizacoesInseridas} paralizações`)
+      }
+    }
+
+    return res.status(200).json({
+      success: errorsCount === 0 && inserted > 0,
+      message: errorsCount === 0 && inserted > 0
+        ? `${inserted} registros sincronizados com sucesso`
+        : inserted === 0
+        ? `Nenhum registro inserido. ${obras.length} válidos de ${data.length} linhas CSV.`
+        : `${inserted} inseridos, ${errorsCount} lotes com erro`,
+      stats: {
+        csvLinhas: data.length,
+        registrosValidos: obras.length,
+        inseridosAtualizados: inserted,
+        paralizacoesInseridas,
+        erros: errorsCount,
+        errorMessages: errorMessages.slice(0, 5),
+        delimitadorUsado: delimiter,
+        colunasCsv: Object.keys(data[0] || {}),
+        primeiraLinhaRaw: firstLine.substring(0, 300),
+        exemploRegistro: obras[0] || null,
+        exemploLinhaCSV: data[0] || null,
+      },
+      timestamp: new Date().toISOString(),
+    })
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Erro desconhecido',
+      timestamp: new Date().toISOString(),
+    })
+  }
+}

@@ -1,0 +1,113 @@
+.container {
+  padding: 0;
+  margin-bottom: 1.5rem;
+}
+
+.card {
+  background: var(--surface-1);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 1rem;
+}
+
+.controle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.legenda {
+  font-size: 13px;
+  color: var(--text-secondary);
+  min-width: 120px;
+}
+
+.slider {
+  flex: 1;
+  min-width: 150px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-0);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--fill-accent);
+  cursor: pointer;
+  box-shadow: 0 0 0 3px var(--bg-accent);
+}
+
+.slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--fill-accent);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 0 3px var(--bg-accent);
+}
+
+.valor {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 100px;
+  text-align: right;
+}
+
+.resultado {
+  margin-bottom: 1.5rem;
+}
+
+.numeroGrande {
+  font-family: var(--font-voice);
+  font-size: 48px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.contexto {
+  font-size: 13px;
+  color: var(--text-secondary);
+  max-width: 280px;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.extra {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.info {
+  background: var(--surface-0);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.info p {
+  margin: 0;
+}

@@ -1,0 +1,264 @@
+.card {
+  background: var(--surface-2);
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 12px;
+  transition: border-color 0.15s;
+}
+
+.card:hover {
+  border-color: var(--border-strong);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.titulo {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+
+.local {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.status {
+  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.metricas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.metrica {
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.valor {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.progresso {
+  margin-bottom: 12px;
+}
+
+.progressoBar {
+  height: 6px;
+  background: var(--surface-0);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.progressoFill {
+  height: 100%;
+  border-radius: 3px;
+  background: #2a78d6;
+  transition: width 0.5s ease;
+}
+
+.progressoTexto {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.acoes {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 0.5px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.botao {
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  border: 0.5px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.botao:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.relato {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: var(--surface-0);
+  border-radius: var(--radius);
+}
+
+.relato textarea {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 8px;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  resize: vertical;
+  min-height: 60px;
+}
+
+.relatoBotoes {
+  display: flex;
+  gap: 8px;
+}
+
+.relatoBotoes button {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.relatoBotoes button:first-child {
+  border-color: var(--border-accent);
+  color: var(--text-accent);
+}
+
+.relatoBotoes button:first-child:hover {
+  background: var(--bg-accent);
+}
+
+.expandir {
+  font-size: 12px;
+  color: var(--text-accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.expandir:hover {
+  text-decoration: underline;
+}
+
+.detalhes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 24px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--border);
+}
+
+.detalheRow {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+}
+
+.detalheRow span:first-child {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.detalheRow span:last-child {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+/* Badge de inconsistência */
+.badgeInconsistencia {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #eaf3de;
+  color: #3b6d11;
+  font-weight: 500;
+  white-space: nowrap;
+  border: 1px solid #c5dea8;
+}
+
+/* Aviso detalhado de inconsistência */
+.avisoInconsistencia {
+  padding: 8px 12px;
+  background: #eaf3de;
+  border: 1px solid #c5dea8;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #3b6d11;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+/* Link do título e botão primário */
+.tituloLink {
+  text-decoration: none !important;
+  color: inherit;
+}
+
+.tituloLink:hover .titulo {
+  color: var(--text-accent);
+}
+
+.botaoPrimario {
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  border: 0.5px solid var(--border-accent);
+  background: var(--bg-accent);
+  color: var(--text-accent) !important;
+  text-decoration: none !important;
+  transition: all 0.15s;
+}
+
+.botaoPrimario:hover {
+  filter: brightness(0.97);
+}
+
+.avisoParalisada {
+  padding: 8px 12px;
+  background: var(--bg-warning);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-warning);
+  margin-bottom: 12px;
+  line-height: 1.5;
+}

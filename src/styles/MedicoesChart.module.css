@@ -1,0 +1,203 @@
+.topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.legendaTexto {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.toggleTabela {
+  font-size: 12px;
+  padding: 4px 12px;
+  border: 0.5px solid var(--border);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+
+.toggleTabela:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.chartWrap {
+  position: relative;
+}
+
+.svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  touch-action: none;
+}
+
+.grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.eixo {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.tickY {
+  font-size: 11px;
+  fill: var(--text-muted);
+  text-anchor: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.tickX {
+  font-size: 11px;
+  fill: var(--text-muted);
+}
+
+.linha {
+  fill: none;
+  stroke: var(--fill-accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.area {
+  fill: var(--fill-accent);
+  opacity: 0.1;
+  stroke: none;
+}
+
+.linhaContrato {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.labelContrato {
+  font-size: 11px;
+  fill: var(--text-secondary);
+  text-anchor: end;
+}
+
+.dotFinal {
+  fill: var(--fill-accent);
+  stroke: var(--surface-1);
+  stroke-width: 2;
+}
+
+.labelFinal {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--text-primary);
+  text-anchor: end;
+}
+
+.crosshair {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.dotHover {
+  fill: var(--fill-accent);
+  stroke: var(--surface-1);
+  stroke-width: 2;
+}
+
+.tooltip {
+  position: absolute;
+  top: 8px;
+  transform: translateX(8px);
+  background: var(--surface-2);
+  border: 0.5px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  z-index: 5;
+  min-width: 150px;
+}
+
+.tooltipTitulo {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.tooltipLinha {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.tooltipValor {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltipValorSec {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltipLabel {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.vazio {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 1rem 0;
+}
+
+.tabelaWrap {
+  overflow-x: auto;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tabela th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+  padding: 8px 12px;
+  border-bottom: 0.5px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--surface-1);
+}
+
+.tabela td {
+  padding: 6px 12px;
+  border-bottom: 0.5px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.tabela td.num,
+.tabela th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

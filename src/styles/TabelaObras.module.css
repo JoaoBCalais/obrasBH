@@ -1,0 +1,152 @@
+/* === Visão tabela + toggle cards/tabela === */
+
+.barraControles {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.visaoToggle {
+  display: flex;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.visaoBtn {
+  padding: 6px 16px;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+
+.visaoBtn:hover {
+  color: var(--text-primary);
+}
+
+.visaoBtnActive {
+  background: var(--bg-accent);
+  color: var(--text-accent);
+  font-weight: 500;
+}
+
+.wrap {
+  overflow-x: auto;
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+  margin-bottom: 2rem;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 760px;
+}
+
+.tabela th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+  padding: 10px 12px;
+  border-bottom: 0.5px solid var(--border);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  background: var(--surface-1);
+  z-index: 1;
+}
+
+.thClicavel {
+  cursor: pointer;
+  user-select: none;
+}
+
+.thClicavel:hover {
+  color: var(--text-primary);
+}
+
+.tabela td {
+  padding: 10px 12px;
+  border-bottom: 0.5px solid var(--border);
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+
+.linha {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.linha:hover {
+  background: var(--surface-2);
+}
+
+.linha:last-child td {
+  border-bottom: none;
+}
+
+.tdNome {
+  max-width: 320px;
+}
+
+.tdNome a {
+  display: block;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.tdNome a:hover {
+  color: var(--text-accent);
+  text-decoration: underline;
+}
+
+.tdEmpresa {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.execucaoCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.miniBarra {
+  width: 56px;
+  height: 5px;
+  background: var(--surface-0);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.miniBarraFill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--fill-accent);
+}

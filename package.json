@@ -1,0 +1,26 @@
+{
+  "name": "obras-bh",
+  "version": "1.0.0",
+  "description": "Plataforma de acompanhamento colaborativo de obras públicas em Belo Horizonte",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "swr": "^2.2.0",
+    "date-fns": "^2.30.0",
+    "@supabase/supabase-js": "^2.38.0",
+    "papaparse": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "typescript": "^5.2.0",
+    "@types/papaparse": "^5.3.7"
+  }
+}
