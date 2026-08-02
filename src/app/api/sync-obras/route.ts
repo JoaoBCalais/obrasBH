@@ -20,7 +20,6 @@ interface ObraProcessada {
   empresa: string
   tematica: string
   fonte: 'powerbi' | 'ckan'
-}
 
 // Baixar dados do PowerBI (Google Drive)
 async function downloadPowerBIData(): Promise<string> {
@@ -35,7 +34,6 @@ async function downloadPowerBIData(): Promise<string> {
     console.error('Erro ao baixar CSV do PowerBI:', error)
     throw error
   }
-}
 
 // Processar dados do PowerBI
 function processarPowerBIData(csvText: string): ObraProcessada[] {
@@ -107,7 +105,6 @@ function processarPowerBIData(csvText: string): ObraProcessada[] {
       }
     })
   })
-}
 
 function mapearStatusPowerBI(situacao: string): string {
   const normalizado = situacao?.trim() || ''
@@ -122,7 +119,6 @@ function mapearStatusPowerBI(situacao: string): string {
   }
 
   return mapa[normalizado] || normalizado
-}
 
 async function salvarNoSupabase(obras: ObraProcessada[]): Promise<number> {
   // Limpar tabela antiga
@@ -148,7 +144,6 @@ async function salvarNoSupabase(obras: ObraProcessada[]): Promise<number> {
   }
 
   return totalInserido
-}
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
@@ -203,8 +198,5 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
 
-export const config = {
-  maxDuration: 60
-}
+export const maxDuration = 60
