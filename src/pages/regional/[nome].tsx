@@ -1,9 +1,10 @@
-import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useState, useMemo } from 'react'
+import { Layout } from '@/components/Layout'
 import { CardObra } from '@/components/CardObra'
 import { useObras } from '@/hooks/useObras'
+import { analisarObra, AnaliseRisco, NIVEL_LABELS } from '@/lib/risco'
 import { STATUS_LABELS, STATUS_CORES, normalizeStatus, formatMoeda } from '@/lib/format'
 import styles from '@/styles/Home.module.css'
 import tabela from '@/styles/TabelaObras.module.css'
@@ -22,7 +23,14 @@ export default function RegionalPage() {
   const [ordem, setOrdem] = useState<Ordenacao>('valor')
   const [ordemAsc, setOrdemAsc] = useState(false)
   const ITENS_POR_PAGINA = 12
-  const { obras, isLoading, isError } = useObras()
+  const { obras, isLoading } = useObras()
+
+  // Análise de indícios
+  const analises = useMemo(() => {
+    const mapa = new Map<number, AnaliseRisco>()
+    obras.forEach(o => mapa.set(o.id, analisarObra(o)))
+    return mapa
+  }, [obras])
 
   // Formatar obras
   const obrasFormatadas = useMemo(() => obras.map(obra => {
@@ -46,6 +54,7 @@ export default function RegionalPage() {
 
     return {
       id: String(obra.id),
+      idNum: obra.id,
       id_area_empreendimento: obra.id_area_empreendimento,
       nome: obra.nome,
       local: obra.regional,
@@ -127,12 +136,6 @@ export default function RegionalPage() {
     return ordemAsc ? ' ↑' : ' ↓'
   }
 
-  // Contagens por status nesta regional
-  const contagens: Record<string, number> = {}
-  obrasDaRegional.forEach(obra => {
-    contagens[obra.status] = (contagens[obra.status] || 0) + 1
-  })
-
   // KPIs da regional
   const todasDaRegional = obrasFormatadas.filter(o => (o.regional || 'Sem regional') === nomeRegional)
   const valorTotal = todasDaRegional.reduce((s, o) => s + o.valorContrato, 0)
@@ -140,6 +143,7 @@ export default function RegionalPage() {
   const valorMedido = todasDaRegional.reduce((s, o) => s + o.valorMedicao, 0)
   const emAndamento = todasDaRegional.filter(o => o.status === 'EM_ANDAMENTO').length
   const pctExecucao = valorTotal > 0 ? Math.round((valorMedido / valorTotal) * 100) : 0
+  const criticasRegional = todasDaRegional.filter(o => analises.get(o.idNum)?.nivel === 'critico').length
 
   // Paginação (só na visão cards; tabela mostra tudo)
   const totalPaginas = Math.ceil(obrasOrdenadas.length / ITENS_POR_PAGINA)
@@ -150,251 +154,243 @@ export default function RegionalPage() {
   if (!nomeRegional) return null
 
   return (
-    <>
-      <Head>
-        <title>{nomeRegional} — ObrasBH</title>
-        <meta name="description" content={`Obras públicas na regional ${nomeRegional} de Belo Horizonte`} />
-      </Head>
+    <Layout
+      title={`${nomeRegional} — ObrasBH`}
+      description={`Obras públicas na regional ${nomeRegional} de Belo Horizonte`}
+    >
+      <button className={styles.voltarBtn} onClick={() => router.push('/')}>
+        ← Todas as regionais
+      </button>
 
-      <div className={styles.app}>
-        <header className={styles.header}>
-          <div className={styles.container}>
-            <h1>ObrasBH</h1>
-            <p>Fiscalize, vote e acompanhe as obras da sua cidade</p>
+      <h1 className={styles.regionalTitulo}>{nomeRegional}</h1>
+      <p className={styles.regionalSubtitulo}>
+        {todasDaRegional.length} {todasDaRegional.length === 1 ? 'obra' : 'obras'} · {formatMoeda(valorTotal)} em contratos · {pctExecucao}% executado
+        {criticasRegional > 0 && (
+          <> · <Link href="/radar">{criticasRegional} em nível crítico</Link></>
+        )}
+      </p>
+
+      {/* Mini KPIs da regional */}
+      <div className={styles.kpis}>
+        <div className={styles.kpi}>
+          <div className={styles.kpiLabel}>Obras</div>
+          <div className={styles.kpiValue}>{isLoading ? '...' : todasDaRegional.length}</div>
+          <div className={styles.kpiExtra}>{emAndamento} em andamento</div>
+        </div>
+        <div className={styles.kpi}>
+          <div className={styles.kpiLabel}>Valor total</div>
+          <div className={styles.kpiValue}>{isLoading ? '...' : formatMoeda(valorTotal)}</div>
+          <div className={styles.kpiExtra}>em contratos</div>
+        </div>
+        <div className={styles.kpi}>
+          <div className={styles.kpiLabel}>Aditivos</div>
+          <div className={styles.kpiValue} style={{ color: 'var(--text-warning)' }}>
+            {isLoading ? '...' : `+${formatMoeda(valorAditivos)}`}
           </div>
-        </header>
-
-        <main className={styles.container}>
-          <button className={styles.voltarBtn} onClick={() => router.push('/')}>
-            ← Voltar para todas as regionais
-          </button>
-
-          <h2 className={styles.regionalTitulo}>{nomeRegional}</h2>
-          <p className={styles.regionalSubtitulo}>
-            {todasDaRegional.length} {todasDaRegional.length === 1 ? 'obra' : 'obras'} · {formatMoeda(valorTotal)} em contratos · {pctExecucao}% executado
-          </p>
-
-          {/* Mini KPIs da regional */}
-          <div className={styles.kpis}>
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>Obras</div>
-              <div className={styles.kpiValue}>{isLoading ? '...' : todasDaRegional.length}</div>
-              <div className={styles.kpiExtra}>{emAndamento} em andamento</div>
-            </div>
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>Valor total</div>
-              <div className={styles.kpiValue}>{isLoading ? '...' : formatMoeda(valorTotal)}</div>
-              <div className={styles.kpiExtra}>em contratos</div>
-            </div>
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>Aditivos</div>
-              <div className={styles.kpiValue} style={{ color: 'var(--text-warning)' }}>
-                {isLoading ? '...' : `+${formatMoeda(valorAditivos)}`}
-              </div>
-              <div className={styles.kpiExtra}>
-                {valorTotal > 0 ? `+${Math.round((valorAditivos / valorTotal) * 100)}% sobre o contratado` : 'sobre o contratado'}
-              </div>
-            </div>
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>
-                Valor medido
-                <span className={styles.infoIcon} tabIndex={0}>
-                  i
-                  <span className={styles.infoTooltip}>
-                    Quanto do serviço contratado já foi executado, conferido por um fiscal e aprovado para pagamento.
-                  </span>
-                </span>
-              </div>
-              <div className={styles.kpiValue} style={{ color: 'var(--text-success)' }}>
-                {isLoading ? '...' : formatMoeda(valorMedido)}
-              </div>
-              <div className={styles.kpiExtra}>{pctExecucao}% executado</div>
-            </div>
+          <div className={styles.kpiExtra}>
+            {valorTotal > 0 ? `+${Math.round((valorAditivos / valorTotal) * 100)}% sobre o contratado` : 'sobre o contratado'}
           </div>
-
-          <input
-            type="text"
-            placeholder="Buscar obra, empresa ou contrato..."
-            value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setPaginaAtual(1) }}
-            className={styles.searchInput}
-            disabled={isLoading}
-          />
-
-          <div className={tabela.barraControles}>
-            <div className={styles.filtros} style={{ marginBottom: 0 }}>
-              {['Todas', 'Em andamento', 'Concluída', 'Paralisada', 'Em Negociação', 'Cancelado'].map(status => (
-                <button
-                  key={status}
-                  className={`${styles.filterBtn} ${statusFilter === status ? styles.filterBtnActive : ''}`}
-                  onClick={() => { setStatusFilter(status); setPaginaAtual(1) }}
-                  disabled={isLoading}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
-
-            <div className={tabela.visaoToggle}>
-              <button
-                className={`${tabela.visaoBtn} ${visao === 'cards' ? tabela.visaoBtnActive : ''}`}
-                onClick={() => setVisao('cards')}
-              >
-                Cards
-              </button>
-              <button
-                className={`${tabela.visaoBtn} ${visao === 'tabela' ? tabela.visaoBtnActive : ''}`}
-                onClick={() => setVisao('tabela')}
-              >
-                Tabela
-              </button>
-            </div>
+        </div>
+        <div className={styles.kpi}>
+          <div className={styles.kpiLabel}>
+            Valor medido
+            <span className={styles.infoIcon} tabIndex={0}>
+              i
+              <span className={styles.infoTooltip}>
+                Quanto do serviço contratado já foi executado, conferido por um fiscal e aprovado para pagamento.
+              </span>
+            </span>
           </div>
-
-          <div style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 12px' }}>
-            {obrasOrdenadas.length} {obrasOrdenadas.length === 1 ? 'resultado' : 'resultados'}
-            {visao === 'cards' && totalPaginas > 1 && ` — página ${paginaSegura} de ${totalPaginas}`}
+          <div className={styles.kpiValue} style={{ color: 'var(--text-success)' }}>
+            {isLoading ? '...' : formatMoeda(valorMedido)}
           </div>
-
-          {isLoading ? (
-            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-              Carregando obras...
-            </div>
-          ) : obrasOrdenadas.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-              Nenhuma obra encontrada com esses filtros
-            </div>
-          ) : visao === 'tabela' ? (
-            <div className={tabela.wrap}>
-              <table className={tabela.tabela}>
-                <thead>
-                  <tr>
-                    <th onClick={() => mudarOrdem('nome')} className={tabela.thClicavel}>
-                      Obra{setaOrdem('nome')}
-                    </th>
-                    <th>Status</th>
-                    <th onClick={() => mudarOrdem('valor')} className={`${tabela.thClicavel} ${tabela.num}`}>
-                      Valor{setaOrdem('valor')}
-                    </th>
-                    <th onClick={() => mudarOrdem('aditivo')} className={`${tabela.thClicavel} ${tabela.num}`}>
-                      Aditivos{setaOrdem('aditivo')}
-                    </th>
-                    <th onClick={() => mudarOrdem('medido')} className={`${tabela.thClicavel} ${tabela.num}`}>
-                      Medido{setaOrdem('medido')}
-                    </th>
-                    <th onClick={() => mudarOrdem('execucao')} className={`${tabela.thClicavel} ${tabela.num}`}>
-                      Execução{setaOrdem('execucao')}
-                    </th>
-                    <th onClick={() => mudarOrdem('atraso')} className={`${tabela.thClicavel} ${tabela.num}`}>
-                      Dias aditivados{setaOrdem('atraso')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {obrasOrdenadas.map(obra => {
-                    const cor = STATUS_CORES[obra.status] || { bg: '#f0f0f0', text: '#333' }
-                    return (
-                      <tr key={obra.id} onClick={() => router.push(`/obra/${obra.id}`)} className={tabela.linha}>
-                        <td className={tabela.tdNome}>
-                          <Link href={`/obra/${obra.id}`} onClick={e => e.stopPropagation()}>
-                            {obra.nome}
-                          </Link>
-                          <span className={tabela.tdEmpresa}>{obra.empresa}</span>
-                        </td>
-                        <td>
-                          <span className={styles.status} style={{ backgroundColor: cor.bg, color: cor.text, fontSize: '10px', padding: '2px 8px' }}>
-                            {STATUS_LABELS[obra.status] || obra.status}
-                          </span>
-                        </td>
-                        <td className={tabela.num}>{obra.valorContrato > 0 ? formatMoeda(obra.valorContrato) : '—'}</td>
-                        <td className={tabela.num} style={{ color: obra.valorAditivo > 0 ? 'var(--text-warning)' : undefined }}>
-                          {obra.valorAditivo > 0 ? `+${formatMoeda(obra.valorAditivo)}` : '—'}
-                        </td>
-                        <td className={tabela.num}>{obra.valorMedicao > 0 ? formatMoeda(obra.valorMedicao) : '—'}</td>
-                        <td className={tabela.num}>
-                          <div className={tabela.execucaoCell}>
-                            <div className={tabela.miniBarra}>
-                              <div
-                                className={tabela.miniBarraFill}
-                                style={{ width: `${Math.min(obra.pctExecucao, 100)}%` }}
-                              />
-                            </div>
-                            <span>{obra.pctExecucao}%</span>
-                          </div>
-                        </td>
-                        <td className={tabela.num} style={{ color: obra.diasAditivados > 0 ? 'var(--text-warning)' : undefined }}>
-                          {obra.diasAditivados > 0 ? `+${obra.diasAditivados}` : '—'}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <>
-              <div className={styles.obrasList}>
-                {obrasPaginadas.map(obra => <CardObra key={obra.id} obra={obra} />)}
-              </div>
-
-              {totalPaginas > 1 && (
-                <div className={styles.paginacao}>
-                  <button
-                    className={styles.paginacaoBtn}
-                    onClick={() => { setPaginaAtual(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-                    disabled={paginaSegura <= 1}
-                  >
-                    Anterior
-                  </button>
-
-                  <div className={styles.paginacaoNumeros}>
-                    {Array.from({ length: totalPaginas }, (_, i) => i + 1)
-                      .filter(p => p === 1 || p === totalPaginas || Math.abs(p - paginaSegura) <= 1)
-                      .reduce<(number | string)[]>((acc, p, idx, arr) => {
-                        if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...')
-                        acc.push(p)
-                        return acc
-                      }, [])
-                      .map((item, idx) =>
-                        typeof item === 'string' ? (
-                          <span key={`dots-${idx}`} className={styles.paginacaoDots}>...</span>
-                        ) : (
-                          <button
-                            key={item}
-                            className={`${styles.paginacaoNum} ${item === paginaSegura ? styles.paginacaoNumActive : ''}`}
-                            onClick={() => { setPaginaAtual(item); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-                          >
-                            {item}
-                          </button>
-                        )
-                      )
-                    }
-                  </div>
-
-                  <button
-                    className={styles.paginacaoBtn}
-                    onClick={() => { setPaginaAtual(p => Math.min(totalPaginas, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-                    disabled={paginaSegura >= totalPaginas}
-                  >
-                    Próxima
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </main>
-
-        <footer className={styles.footer}>
-          <p>
-            <strong>ObrasBH</strong> — Transparência para uma cidade melhor
-          </p>
-          <p>
-            <button className={styles.voltarBtn} onClick={() => router.push('/')}>
-              ← Voltar para todas as regionais
-            </button>
-          </p>
-        </footer>
+          <div className={styles.kpiExtra}>{pctExecucao}% executado</div>
+        </div>
       </div>
-    </>
+
+      <input
+        type="text"
+        placeholder="Buscar obra, empresa ou contrato..."
+        value={searchTerm}
+        onChange={(e) => { setSearchTerm(e.target.value); setPaginaAtual(1) }}
+        className={styles.searchInput}
+        disabled={isLoading}
+      />
+
+      <div className={tabela.barraControles}>
+        <div className={styles.filtros} style={{ marginBottom: 0 }}>
+          {['Todas', 'Em andamento', 'Concluída', 'Paralisada', 'Em Negociação', 'Cancelado'].map(status => (
+            <button
+              key={status}
+              className={`${styles.filterBtn} ${statusFilter === status ? styles.filterBtnActive : ''}`}
+              onClick={() => { setStatusFilter(status); setPaginaAtual(1) }}
+              disabled={isLoading}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+
+        <div className={tabela.visaoToggle}>
+          <button
+            className={`${tabela.visaoBtn} ${visao === 'cards' ? tabela.visaoBtnActive : ''}`}
+            onClick={() => setVisao('cards')}
+          >
+            Cards
+          </button>
+          <button
+            className={`${tabela.visaoBtn} ${visao === 'tabela' ? tabela.visaoBtnActive : ''}`}
+            onClick={() => setVisao('tabela')}
+          >
+            Tabela
+          </button>
+        </div>
+      </div>
+
+      <div className={styles.contagemResultados}>
+        {obrasOrdenadas.length} {obrasOrdenadas.length === 1 ? 'resultado' : 'resultados'}
+        {visao === 'cards' && totalPaginas > 1 && ` — página ${paginaSegura} de ${totalPaginas}`}
+      </div>
+
+      {isLoading ? (
+        <div className={styles.estadoVazio}>Carregando obras...</div>
+      ) : obrasOrdenadas.length === 0 ? (
+        <div className={styles.estadoVazio}>Nenhuma obra encontrada com esses filtros</div>
+      ) : visao === 'tabela' ? (
+        <div className={tabela.wrap}>
+          <table className={tabela.tabela}>
+            <thead>
+              <tr>
+                <th onClick={() => mudarOrdem('nome')} className={tabela.thClicavel}>
+                  Obra{setaOrdem('nome')}
+                </th>
+                <th>Status</th>
+                <th>Alerta</th>
+                <th onClick={() => mudarOrdem('valor')} className={`${tabela.thClicavel} ${tabela.num}`}>
+                  Valor{setaOrdem('valor')}
+                </th>
+                <th onClick={() => mudarOrdem('aditivo')} className={`${tabela.thClicavel} ${tabela.num}`}>
+                  Aditivos{setaOrdem('aditivo')}
+                </th>
+                <th onClick={() => mudarOrdem('medido')} className={`${tabela.thClicavel} ${tabela.num}`}>
+                  Medido{setaOrdem('medido')}
+                </th>
+                <th onClick={() => mudarOrdem('execucao')} className={`${tabela.thClicavel} ${tabela.num}`}>
+                  Execução{setaOrdem('execucao')}
+                </th>
+                <th onClick={() => mudarOrdem('atraso')} className={`${tabela.thClicavel} ${tabela.num}`}>
+                  Dias aditivados{setaOrdem('atraso')}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {obrasOrdenadas.map(obra => {
+                const cor = STATUS_CORES[obra.status] || { bg: '#f0f0f0', text: '#333' }
+                const analise = analises.get(obra.idNum)
+                return (
+                  <tr key={obra.id} onClick={() => router.push(`/obra/${obra.id}`)} className={tabela.linha}>
+                    <td className={tabela.tdNome}>
+                      <Link href={`/obra/${obra.id}`} onClick={e => e.stopPropagation()}>
+                        {obra.nome}
+                      </Link>
+                      <span className={tabela.tdEmpresa}>{obra.empresa}</span>
+                    </td>
+                    <td>
+                      <span className={styles.status} style={{ backgroundColor: cor.bg, color: cor.text, fontSize: '10px', padding: '2px 8px' }}>
+                        {STATUS_LABELS[obra.status] || obra.status}
+                      </span>
+                    </td>
+                    <td>
+                      {analise && analise.nivel !== 'ok' ? (
+                        <span
+                          className={tabela.alertaPill}
+                          data-nivel={analise.nivel}
+                          title={analise.alertas.map(a => a.titulo).join(' · ')}
+                        >
+                          ⚠ {NIVEL_LABELS[analise.nivel]}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      )}
+                    </td>
+                    <td className={tabela.num}>{obra.valorContrato > 0 ? formatMoeda(obra.valorContrato) : '—'}</td>
+                    <td className={tabela.num} style={{ color: obra.valorAditivo > 0 ? 'var(--text-warning)' : undefined }}>
+                      {obra.valorAditivo > 0 ? `+${formatMoeda(obra.valorAditivo)}` : '—'}
+                    </td>
+                    <td className={tabela.num}>{obra.valorMedicao > 0 ? formatMoeda(obra.valorMedicao) : '—'}</td>
+                    <td className={tabela.num}>
+                      <div className={tabela.execucaoCell}>
+                        <div className={tabela.miniBarra}>
+                          <div
+                            className={tabela.miniBarraFill}
+                            style={{ width: `${Math.min(obra.pctExecucao, 100)}%` }}
+                          />
+                        </div>
+                        <span>{obra.pctExecucao}%</span>
+                      </div>
+                    </td>
+                    <td className={tabela.num} style={{ color: obra.diasAditivados > 0 ? 'var(--text-warning)' : undefined }}>
+                      {obra.diasAditivados > 0 ? `+${obra.diasAditivados}` : '—'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <>
+          <div className={styles.obrasList}>
+            {obrasPaginadas.map(obra => (
+              <CardObra key={obra.id} obra={obra} analise={analises.get(obra.idNum)} />
+            ))}
+          </div>
+
+          {totalPaginas > 1 && (
+            <div className={styles.paginacao}>
+              <button
+                className={styles.paginacaoBtn}
+                onClick={() => { setPaginaAtual(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                disabled={paginaSegura <= 1}
+              >
+                Anterior
+              </button>
+
+              <div className={styles.paginacaoNumeros}>
+                {Array.from({ length: totalPaginas }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPaginas || Math.abs(p - paginaSegura) <= 1)
+                  .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...')
+                    acc.push(p)
+                    return acc
+                  }, [])
+                  .map((item, idx) =>
+                    typeof item === 'string' ? (
+                      <span key={`dots-${idx}`} className={styles.paginacaoDots}>...</span>
+                    ) : (
+                      <button
+                        key={item}
+                        className={`${styles.paginacaoNum} ${item === paginaSegura ? styles.paginacaoNumActive : ''}`}
+                        onClick={() => { setPaginaAtual(item); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                      >
+                        {item}
+                      </button>
+                    )
+                  )
+                }
+              </div>
+
+              <button
+                className={styles.paginacaoBtn}
+                onClick={() => { setPaginaAtual(p => Math.min(totalPaginas, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                disabled={paginaSegura >= totalPaginas}
+              >
+                Próxima
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </Layout>
   )
 }

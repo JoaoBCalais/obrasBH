@@ -11,43 +11,25 @@ export function useParalizacoes(idObra: string) {
 
   useEffect(() => {
     if (!idObra) {
-      console.log('❌ useParalizacoes: idObra está vazio!')
       setLoading(false)
       return
     }
 
     const fetchParalizacoes = async () => {
       try {
-        console.log(`🔍 [DEBUG] useParalizacoes: Buscando com ID = "${idObra}" (tipo: ${typeof idObra})`)
         setLoading(true)
-        
+
         const { data, error: err } = await supabase
           .from('paralizacoes')
           .select('*')
           .eq('id_area_empreendimento', idObra)
           .order('data_paralisacao', { ascending: false })
 
-        console.log(`📊 [DEBUG] Query executada. Erro: ${err ? err.message : 'nenhum'}. Resultados: ${data?.length || 0}`)
-        
-        if (data && data.length > 0) {
-          console.log(`✅ ENCONTROU ${data.length} paralizações:`, data)
-        } else {
-          console.warn(`⚠️ Nenhuma paralisação encontrada para ID: "${idObra}"`)
-          // Teste: listar TODOS os id_area_empreendimento da tabela para debug
-          const { data: allIds } = await supabase
-            .from('paralizacoes')
-            .select('id_area_empreendimento')
-            .limit(10)
-          console.log('IDs que existem na tabela:', allIds?.map(r => r.id_area_empreendimento))
-        }
-
         if (err) throw err
 
         setParalizacoes(data || [])
         setError(null)
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido'
-        console.error(`❌ useParalizacoes erro: ${errorMsg}`)
         setError(err instanceof Error ? err : new Error('Erro ao buscar paralizações'))
         setParalizacoes([])
       } finally {
@@ -111,8 +93,8 @@ export function useContagemParalizacoes(idsObras: string[]) {
         })
 
         setContagem(resultado)
-      } catch (err) {
-        console.error('Erro ao buscar contagem de paralizações:', err)
+      } catch {
+        // silencioso — tabela pode não existir ainda
       } finally {
         setLoading(false)
       }

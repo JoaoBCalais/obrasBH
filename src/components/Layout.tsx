@@ -6,9 +6,13 @@ import styles from '@/styles/Layout.module.css'
 
 interface LayoutProps {
   children: ReactNode
+  /** Título da aba do navegador */
   title?: string
+  /** Meta description */
   description?: string
+  /** Quantidade de obras em nível crítico (mostra selo no link do Radar) */
   alertasCriticos?: number
+  /** Hero grande na home; páginas internas usam o header compacto */
   hero?: ReactNode
 }
 
@@ -23,7 +27,7 @@ export function Layout({ children, title, description, alertasCriticos = 0, hero
   return (
     <>
       <Head>
-        <title>{title || 'ObrasBH — Transparência em Obras Públicas'}</title>
+        <title>{title || 'ObrasBH — Transparência em Obras Públicas de Belo Horizonte'}</title>
         {description && <meta name="description" content={description} />}
       </Head>
 
@@ -49,7 +53,7 @@ export function Layout({ children, title, description, alertasCriticos = 0, hero
                   >
                     {link.label}
                     {link.href === '/radar' && alertasCriticos > 0 && (
-                      <span className={styles.navBadge} title={`${alertasCriticos} obras críticas`}>
+                      <span className={styles.navBadge} title={`${alertasCriticos} obras em nível crítico`}>
                         {alertasCriticos}
                       </span>
                     )}
@@ -71,7 +75,8 @@ export function Layout({ children, title, description, alertasCriticos = 0, hero
             </p>
             <p className={styles.footerTexto}>
               Dados abertos do painel Transparência Obras Públicas da SMOBI / Prefeitura de Belo Horizonte.
-              Os alertas são indícios calculados automaticamente — não são acusações — e servem como ponto de partida para a fiscalização cidadã.
+              Os alertas exibidos são indícios calculados automaticamente — <strong>não são acusações</strong> —
+              e servem como ponto de partida para a fiscalização cidadã.
             </p>
             <nav className={styles.footerNav} aria-label="Links do rodapé">
               <Link href="/">Início</Link>

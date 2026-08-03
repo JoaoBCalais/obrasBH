@@ -2,8 +2,11 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--surface-0);
 }
+
+/* ===== Barra de navegação ===== */
 
 .navbar {
   background: linear-gradient(150deg, var(--brand-900) 0%, var(--brand-800) 45%, var(--brand-700) 100%);
@@ -85,7 +88,10 @@
   color: #fff;
   font-size: 11px;
   font-weight: 700;
+  line-height: 1;
 }
+
+/* ===== Hero (usado na home) ===== */
 
 .hero {
   max-width: 1080px;
@@ -94,6 +100,8 @@
   width: 100%;
 }
 
+/* ===== Conteúdo ===== */
+
 .main {
   flex: 1;
   width: 100%;
@@ -101,6 +109,8 @@
   margin: 0 auto;
   padding: 20px 16px 40px;
 }
+
+/* ===== Rodapé ===== */
 
 .footer {
   background: var(--surface-1);

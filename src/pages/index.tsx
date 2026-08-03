@@ -1,7 +1,8 @@
-import Head from 'next/head'
 import Link from 'next/link'
 import { useState, useMemo } from 'react'
+import { Layout } from '@/components/Layout'
 import { useObras } from '@/hooks/useObras'
+import { analisarObra, AnaliseRisco } from '@/lib/risco'
 import { normalizeStatus, formatMoeda, STATUS_LABELS, STATUS_CORES } from '@/lib/format'
 import styles from '@/styles/Home.module.css'
 
@@ -32,6 +33,13 @@ export default function Home() {
     }
   }
 
+  // Análise de indícios de todas as obras (uma vez por carga)
+  const analises = useMemo(() => {
+    const mapa = new Map<number, AnaliseRisco>()
+    obras.forEach(o => mapa.set(o.id, analisarObra(o)))
+    return mapa
+  }, [obras])
+
   // Mapear dados
   const obrasFormatadas = useMemo(() => obras.map(obra => {
     const valorContrato = Number(obra.valor_contrato) || 0
@@ -39,6 +47,7 @@ export default function Home() {
     const valorAditivo = Number(obra.valor_total_aditivo) || 0
     return {
       id: String(obra.id),
+      idNum: obra.id,
       regional: obra.regional,
       status: normalizeStatus(obra.status),
       valorContrato,
@@ -53,6 +62,20 @@ export default function Home() {
     }
   }), [obras])
 
+  // Resumo do radar
+  const radarResumo = useMemo(() => {
+    let criticas = 0
+    let atencao = 0
+    let valorSobAlerta = 0
+    obrasFormatadas.forEach(o => {
+      const a = analises.get(o.idNum)
+      if (!a) return
+      if (a.nivel === 'critico') { criticas++; valorSobAlerta += o.valorAtual }
+      else if (a.nivel === 'atencao') { atencao++; valorSobAlerta += o.valorAtual }
+    })
+    return { criticas, atencao, valorSobAlerta }
+  }, [obrasFormatadas, analises])
+
   // Filtrar por status (afeta grid de regionais)
   const filtradas = useMemo(() => obrasFormatadas.filter(obra => {
     if (statusFilter !== 'Todas') {
@@ -65,7 +88,6 @@ export default function Home() {
       }
       const targetStatus = statusMap[statusFilter]
       if (targetStatus === 'PARALISADA') {
-        // Incluir obras com motivo de paralisação preenchido
         const temParalisacao = obra.motivoParalisacao && obra.motivoParalisacao.trim() !== ''
         if (obra.status !== 'PARALISADA' && !temParalisacao) return false
       } else {
@@ -99,18 +121,22 @@ export default function Home() {
     })
 
     return Object.entries(mapa)
-      .map(([nome, obras]) => {
-        const emAndamento = obras.filter(o => o.status === 'EM_ANDAMENTO').length
-        const concluidas = obras.filter(o => o.status === 'CONCLUIDA').length
-        const paralisadas = obras.filter(o => o.status === 'PARALISADA' || (o.motivoParalisacao && o.motivoParalisacao.trim() !== '')).length
-        const valorTotal = obras.reduce((s, o) => s + o.valorContrato, 0)
-        const valorMedido = obras.reduce((s, o) => s + o.valorMedicao, 0)
+      .map(([nome, lista]) => {
+        const emAndamento = lista.filter(o => o.status === 'EM_ANDAMENTO').length
+        const concluidas = lista.filter(o => o.status === 'CONCLUIDA').length
+        const paralisadasN = lista.filter(o => o.status === 'PARALISADA' || (o.motivoParalisacao && o.motivoParalisacao.trim() !== '')).length
+        const alertas = lista.filter(o => {
+          const a = analises.get(o.idNum)
+          return a && (a.nivel === 'critico' || a.nivel === 'atencao')
+        }).length
+        const valorTotal = lista.reduce((s, o) => s + o.valorContrato, 0)
+        const valorMedido = lista.reduce((s, o) => s + o.valorMedicao, 0)
         const pctExecucao = valorTotal > 0 ? Math.round((valorMedido / valorTotal) * 100) : 0
 
-        return { nome, totalObras: obras.length, emAndamento, concluidas, paralisadas, valorTotal, valorMedido, pctExecucao }
+        return { nome, totalObras: lista.length, emAndamento, concluidas, paralisadas: paralisadasN, alertas, valorTotal, valorMedido, pctExecucao }
       })
       .sort((a, b) => b.totalObras - a.totalObras)
-  }, [filtradas])
+  }, [filtradas, analises])
 
   // Destaques (sempre sobre o conjunto completo, sem filtro)
   const maioresContratos = useMemo(() =>
@@ -134,7 +160,6 @@ export default function Home() {
   // Contagens gerais
   const contagens: Record<string, number> = {}
   obrasFormatadas.forEach(obra => {
-    // Contar como PARALISADA se tem motivo de paralisação preenchido
     const statusEfetivo = (obra.motivoParalisacao && obra.motivoParalisacao.trim() !== '' && obra.status !== 'CONCLUIDA')
       ? 'PARALISADA'
       : obra.status
@@ -147,322 +172,316 @@ export default function Home() {
   const valorTotalAditivos = obrasFormatadas.reduce((sum, o) => sum + o.valorAditivo, 0)
   const valorTotalMedicao = obrasFormatadas.reduce((sum, o) => sum + o.valorMedicao, 0)
 
+  const hero = (
+    <div className={styles.hero}>
+      <h1 className={styles.heroTitulo}>As obras de BH, sob os olhos de todo mundo</h1>
+      <p className={styles.heroSub}>
+        Valores, aditivos, medições, paralisações e prazos de{' '}
+        {isLoading ? '...' : totalObras} contratos públicos — direto dos dados abertos da Prefeitura.
+      </p>
+    </div>
+  )
+
   if (isError) {
     return (
-      <div className={styles.app}>
-        <header className={styles.header}>
-          <div className={styles.container}>
-            <h1>ObrasBH</h1>
-            <p>Fiscalize, vote e acompanhe as obras da sua cidade</p>
-          </div>
-        </header>
-        <main className={styles.container}>
-          <div style={{ padding: '3rem 1rem', color: 'var(--text-danger)' }}>
-            <strong>Erro ao carregar dados:</strong> Verifique se o Supabase está configurado corretamente.
-          </div>
-        </main>
-      </div>
+      <Layout title="ObrasBH — erro">
+        <div style={{ padding: '3rem 0', color: 'var(--text-danger)' }}>
+          <strong>Erro ao carregar dados:</strong> verifique se o Supabase está configurado corretamente.
+        </div>
+      </Layout>
     )
   }
 
   return (
-    <>
-      <Head>
-        <title>ObrasBH — Transparência em Obras Públicas de Belo Horizonte</title>
-        <meta name="description" content="Acompanhe obras públicas de BH: valores, aditivos, medições, paralisações e prazos" />
-      </Head>
-
-      <div className={styles.app}>
-        <header className={styles.header}>
-          <div className={styles.container}>
-            <h1>ObrasBH</h1>
-            <p>Fiscalize, vote e acompanhe as obras da sua cidade</p>
-            {isLoading && <p style={{ fontSize: '14px', opacity: 0.8 }}>Carregando dados...</p>}
+    <Layout
+      description="Acompanhe obras públicas de BH: valores, aditivos, medições, paralisações e prazos"
+      alertasCriticos={radarResumo.criticas}
+      hero={hero}
+    >
+      {/* KPIs */}
+      <div className={styles.kpis}>
+        <div className={styles.kpi}>
+          <div className={styles.kpiLabel}>Contratos</div>
+          <div className={styles.kpiValue}>{isLoading ? '...' : totalObras}</div>
+          <div className={styles.kpiExtra}>
+            {isLoading ? 'registrados na SMOBI' : `${emAndamento} em andamento`}
           </div>
-        </header>
+        </div>
 
-        <main className={styles.container}>
+        <div className={styles.kpi}>
+          <div className={styles.kpiLabel}>Valor contratado</div>
+          <div className={styles.kpiValue}>{isLoading ? '...' : formatMoeda(valorTotalContratos)}</div>
+          <div className={styles.kpiExtra}>valores originais</div>
+        </div>
 
-          {/* KPIs */}
-          <div className={styles.kpis}>
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>Contratos</div>
-              <div className={styles.kpiValue}>{isLoading ? '...' : totalObras}</div>
-              <div className={styles.kpiExtra}>
-                {isLoading ? 'registrados na SMOBI' : `${emAndamento} em andamento`}
-              </div>
-            </div>
-
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>Valor contratado</div>
-              <div className={styles.kpiValue}>{isLoading ? '...' : formatMoeda(valorTotalContratos)}</div>
-              <div className={styles.kpiExtra}>valores originais</div>
-            </div>
-
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>
-                Aditivos
-                <span className={styles.infoIcon} tabIndex={0}>
-                  i
-                  <span className={styles.infoTooltip}>
-                    Quanto os contratos cresceram além do valor original, por renovações e aditivos. Um valor alto pode indicar obras que ficaram bem mais caras do que o combinado.
-                  </span>
-                </span>
-              </div>
-              <div className={styles.kpiValue} style={{ color: 'var(--text-warning)' }}>
-                {isLoading ? '...' : `+${formatMoeda(valorTotalAditivos)}`}
-              </div>
-              <div className={styles.kpiExtra}>
-                {valorTotalContratos > 0
-                  ? `+${Math.round((valorTotalAditivos / valorTotalContratos) * 100)}% sobre o contratado`
-                  : 'sobre o contratado'}
-              </div>
-            </div>
-
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>
-                Valor medido
-                <span className={styles.infoIcon} tabIndex={0}>
-                  i
-                  <span className={styles.infoTooltip}>
-                    Quanto do serviço contratado já foi executado, conferido por um fiscal e aprovado para pagamento. Quanto mais próximo do valor total, mais perto da conclusão.
-                  </span>
-                </span>
-              </div>
-              <div className={styles.kpiValue} style={{ color: 'var(--text-success)' }}>
-                {isLoading ? '...' : formatMoeda(valorTotalMedicao)}
-              </div>
-              <div className={styles.kpiExtra}>
-                {valorTotalContratos > 0
-                  ? `${Math.round((valorTotalMedicao / valorTotalContratos) * 100)}% executado`
-                  : 'do total'}
-              </div>
-            </div>
+        <div className={styles.kpi}>
+          <div className={styles.kpiLabel}>
+            Aditivos
+            <span className={styles.infoIcon} tabIndex={0}>
+              i
+              <span className={styles.infoTooltip}>
+                Quanto os contratos cresceram além do valor original, por renovações e aditivos.
+                Um valor alto pode indicar obras que ficaram bem mais caras do que o combinado.
+              </span>
+            </span>
           </div>
+          <div className={styles.kpiValue} style={{ color: 'var(--text-warning)' }}>
+            {isLoading ? '...' : `+${formatMoeda(valorTotalAditivos)}`}
+          </div>
+          <div className={styles.kpiExtra}>
+            {valorTotalContratos > 0
+              ? `+${Math.round((valorTotalAditivos / valorTotalContratos) * 100)}% sobre o contratado`
+              : 'sobre o contratado'}
+          </div>
+        </div>
 
-          <input
-            type="text"
-            placeholder="Buscar obra, empresa, contrato ou regional..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className={styles.searchInput}
-            disabled={isLoading}
-          />
+        <div className={styles.kpi}>
+          <div className={styles.kpiLabel}>
+            Valor medido
+            <span className={styles.infoIcon} tabIndex={0}>
+              i
+              <span className={styles.infoTooltip}>
+                Quanto do serviço contratado já foi executado, conferido por um fiscal e aprovado
+                para pagamento. Quanto mais próximo do valor total, mais perto da conclusão.
+              </span>
+            </span>
+          </div>
+          <div className={styles.kpiValue} style={{ color: 'var(--text-success)' }}>
+            {isLoading ? '...' : formatMoeda(valorTotalMedicao)}
+          </div>
+          <div className={styles.kpiExtra}>
+            {valorTotalContratos > 0
+              ? `${Math.round((valorTotalMedicao / valorTotalContratos) * 100)}% executado`
+              : 'do total'}
+          </div>
+        </div>
+      </div>
 
-          {/* Resultados de busca — vão direto pra página da obra */}
-          {resultadosBusca !== null ? (
-            <div>
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 12px' }}>
-                {resultadosBusca.length} {resultadosBusca.length === 1 ? 'obra encontrada' : 'obras encontradas'}
-              </div>
-              <div className={styles.buscaLista}>
-                {resultadosBusca.slice(0, 30).map(obra => {
-                  const cor = STATUS_CORES[obra.status] || { bg: '#f0f0f0', text: '#333' }
-                  return (
-                    <Link key={obra.id} href={`/obra/${obra.id}`} className={styles.buscaItem}>
-                      <div className={styles.buscaItemTexto}>
-                        <span className={styles.buscaItemNome}>{obra.nome}</span>
-                        <span className={styles.buscaItemMeta}>
-                          {obra.regional || 'Sem regional'}
-                          {obra.empresa && ` · ${obra.empresa}`}
-                        </span>
-                      </div>
-                      <div className={styles.buscaItemDireita}>
-                        <span className={styles.buscaItemValor}>
-                          {obra.valorAtual > 0 ? formatMoeda(obra.valorAtual) : '—'}
-                        </span>
-                        <span
-                          className={styles.status}
-                          style={{ backgroundColor: cor.bg, color: cor.text }}
-                        >
-                          {STATUS_LABELS[obra.status] || obra.status}
-                        </span>
-                      </div>
-                    </Link>
-                  )
-                })}
-              </div>
-              {resultadosBusca.length > 30 && (
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  Mostrando as 30 de maior valor — refine a busca para ver outras.
-                </p>
-              )}
-            </div>
-          ) : (
-            <>
-              {/* Destaques */}
-              {!isLoading && obrasFormatadas.length > 0 && (
-                <div className={styles.destaques}>
-                  <div className={styles.destaqueCard}>
-                    <h3 className={styles.destaqueTitulo}>Maiores contratos</h3>
-                    {maioresContratos.map((obra, i) => (
-                      <Link key={obra.id} href={`/obra/${obra.id}`} className={styles.destaqueItem}>
-                        <span className={styles.destaqueRank}>{i + 1}</span>
-                        <span className={styles.destaqueNome}>{obra.nome}</span>
-                        <span className={styles.destaqueValor}>{formatMoeda(obra.valorAtual)}</span>
-                      </Link>
-                    ))}
+      {/* Chamada para o Radar */}
+      {!isLoading && (radarResumo.criticas > 0 || radarResumo.atencao > 0) && (
+        <Link href="/radar" className={styles.radarBanner}>
+          <span className={styles.radarBannerIcone} aria-hidden="true">⚠</span>
+          <span className={styles.radarBannerTexto}>
+            <strong>
+              {radarResumo.criticas > 0
+                ? `${radarResumo.criticas} ${radarResumo.criticas === 1 ? 'obra' : 'obras'} em nível crítico`
+                : `${radarResumo.atencao} ${radarResumo.atencao === 1 ? 'obra pede' : 'obras pedem'} atenção`}
+            </strong>
+            <span>
+              {formatMoeda(radarResumo.valorSobAlerta)} em contratos com indícios de aditivo excessivo,
+              atraso ou falta de transparência
+            </span>
+          </span>
+          <span className={styles.radarBannerCta}>Abrir radar →</span>
+        </Link>
+      )}
+
+      <input
+        type="text"
+        placeholder="Buscar obra, empresa, contrato ou regional..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className={styles.searchInput}
+        disabled={isLoading}
+      />
+
+      {/* Resultados de busca — vão direto pra página da obra */}
+      {resultadosBusca !== null ? (
+        <div>
+          <div className={styles.contagemResultados}>
+            {resultadosBusca.length} {resultadosBusca.length === 1 ? 'obra encontrada' : 'obras encontradas'}
+          </div>
+          <div className={styles.buscaLista}>
+            {resultadosBusca.slice(0, 30).map(obra => {
+              const cor = STATUS_CORES[obra.status] || { bg: '#f0f0f0', text: '#333' }
+              return (
+                <Link key={obra.id} href={`/obra/${obra.id}`} className={styles.buscaItem}>
+                  <div className={styles.buscaItemTexto}>
+                    <span className={styles.buscaItemNome}>{obra.nome}</span>
+                    <span className={styles.buscaItemMeta}>
+                      {obra.regional || 'Sem regional'}
+                      {obra.empresa && ` · ${obra.empresa}`}
+                    </span>
                   </div>
-
-                  <div className={styles.destaqueCard}>
-                    <h3 className={styles.destaqueTitulo}>Mais aditivadas</h3>
-                    {maisAditivadas.length === 0 ? (
-                      <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Nenhum aditivo registrado.</p>
-                    ) : maisAditivadas.map((obra, i) => (
-                      <Link key={obra.id} href={`/obra/${obra.id}`} className={styles.destaqueItem}>
-                        <span className={styles.destaqueRank}>{i + 1}</span>
-                        <span className={styles.destaqueNome}>{obra.nome}</span>
-                        <span className={styles.destaqueValor} style={{ color: 'var(--text-warning)' }}>
-                          +{formatMoeda(obra.valorAditivo)}
-                        </span>
-                      </Link>
-                    ))}
+                  <div className={styles.buscaItemDireita}>
+                    <span className={styles.buscaItemValor}>
+                      {obra.valorAtual > 0 ? formatMoeda(obra.valorAtual) : '—'}
+                    </span>
+                    <span
+                      className={styles.status}
+                      style={{ backgroundColor: cor.bg, color: cor.text }}
+                    >
+                      {STATUS_LABELS[obra.status] || obra.status}
+                    </span>
                   </div>
-
-                  <div className={styles.destaqueCard}>
-                    <h3 className={styles.destaqueTitulo}>Paralisadas de maior valor</h3>
-                    {paralisadas.length === 0 ? (
-                      <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Nenhuma obra paralisada.</p>
-                    ) : paralisadas.map((obra, i) => (
-                      <Link key={obra.id} href={`/obra/${obra.id}`} className={styles.destaqueItem}>
-                        <span className={styles.destaqueRank}>{i + 1}</span>
-                        <span className={styles.destaqueNome}>
-                          {obra.nome}
-                          {obra.motivoParalisacao && (
-                            <span className={styles.destaqueMotivo}>{obra.motivoParalisacao}</span>
-                          )}
-                        </span>
-                        <span className={styles.destaqueValor}>{formatMoeda(obra.valorContrato)}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <h2 className={styles.secaoHome}>Obras por regional</h2>
-
-              <div className={styles.filtros}>
-                {['Todas', 'Em andamento', 'Concluída', 'Paralisada', 'Em Negociação', 'Cancelado'].map(status => (
-                  <button
-                    key={status}
-                    className={`${styles.filterBtn} ${statusFilter === status ? styles.filterBtnActive : ''}`}
-                    onClick={() => setStatusFilter(status)}
-                    disabled={isLoading}
-                  >
-                    {status}
-                    {status !== 'Todas' && (
-                      <span style={{ marginLeft: 4, opacity: 0.6, fontSize: '11px' }}>
-                        {contagens[
-                          ({ 'Em andamento': 'EM_ANDAMENTO', 'Concluída': 'CONCLUIDA', 'Paralisada': 'PARALISADA', 'Em Negociação': 'EM_NEGOCIACAO', 'Cancelado': 'CANCELADO' } as Record<string, string>)[status] || ''
-                        ] || 0}
-                      </span>
-                    )}
-                  </button>
+                </Link>
+              )
+            })}
+          </div>
+          {resultadosBusca.length > 30 && (
+            <p className={styles.contagemResultados}>
+              Mostrando as 30 de maior valor — refine a busca para ver outras.
+            </p>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Destaques */}
+          {!isLoading && obrasFormatadas.length > 0 && (
+            <div className={styles.destaques}>
+              <div className={styles.destaqueCard}>
+                <h3 className={styles.destaqueTitulo}>Maiores contratos</h3>
+                {maioresContratos.map((obra, i) => (
+                  <Link key={obra.id} href={`/obra/${obra.id}`} className={styles.destaqueItem}>
+                    <span className={styles.destaqueRank}>{i + 1}</span>
+                    <span className={styles.destaqueNome}>{obra.nome}</span>
+                    <span className={styles.destaqueValor}>{formatMoeda(obra.valorAtual)}</span>
+                  </Link>
                 ))}
               </div>
 
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
-                {filtradas.length} {filtradas.length === 1 ? 'obra' : 'obras'} em {regionais.length} {regionais.length === 1 ? 'regional' : 'regionais'}
+              <div className={styles.destaqueCard}>
+                <h3 className={styles.destaqueTitulo}>Mais aditivadas</h3>
+                {maisAditivadas.length === 0 ? (
+                  <p className={styles.mutedText}>Nenhum aditivo registrado.</p>
+                ) : maisAditivadas.map((obra, i) => (
+                  <Link key={obra.id} href={`/obra/${obra.id}`} className={styles.destaqueItem}>
+                    <span className={styles.destaqueRank}>{i + 1}</span>
+                    <span className={styles.destaqueNome}>{obra.nome}</span>
+                    <span className={styles.destaqueValor} style={{ color: 'var(--text-warning)' }}>
+                      +{formatMoeda(obra.valorAditivo)}
+                    </span>
+                  </Link>
+                ))}
               </div>
 
-              {/* Grid de Regionais */}
-              {isLoading ? (
-                <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-                  Carregando obras de Belo Horizonte...
-                </div>
-              ) : regionais.length > 0 ? (
-                <div className={styles.regionaisGrid}>
-                  {regionais.map(reg => (
-                    <Link
-                      key={reg.nome}
-                      href={`/regional/${encodeURIComponent(reg.nome)}`}
-                      className={styles.regionalCard}
-                    >
+              <div className={styles.destaqueCard}>
+                <h3 className={styles.destaqueTitulo}>Paralisadas de maior valor</h3>
+                {paralisadas.length === 0 ? (
+                  <p className={styles.mutedText}>Nenhuma obra paralisada.</p>
+                ) : paralisadas.map((obra, i) => (
+                  <Link key={obra.id} href={`/obra/${obra.id}`} className={styles.destaqueItem}>
+                    <span className={styles.destaqueRank}>{i + 1}</span>
+                    <span className={styles.destaqueNome}>
+                      {obra.nome}
+                      {obra.motivoParalisacao && (
+                        <span className={styles.destaqueMotivo}>{obra.motivoParalisacao}</span>
+                      )}
+                    </span>
+                    <span className={styles.destaqueValor}>{formatMoeda(obra.valorContrato)}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <h2 className={styles.secaoHome}>Obras por regional</h2>
+
+          <div className={styles.filtros}>
+            {['Todas', 'Em andamento', 'Concluída', 'Paralisada', 'Em Negociação', 'Cancelado'].map(status => (
+              <button
+                key={status}
+                className={`${styles.filterBtn} ${statusFilter === status ? styles.filterBtnActive : ''}`}
+                onClick={() => setStatusFilter(status)}
+                disabled={isLoading}
+              >
+                {status}
+                {status !== 'Todas' && (
+                  <span className={styles.filterCount}>
+                    {contagens[
+                      ({ 'Em andamento': 'EM_ANDAMENTO', 'Concluída': 'CONCLUIDA', 'Paralisada': 'PARALISADA', 'Em Negociação': 'EM_NEGOCIACAO', 'Cancelado': 'CANCELADO' } as Record<string, string>)[status] || ''
+                    ] || 0}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          <div className={styles.contagemResultados}>
+            {filtradas.length} {filtradas.length === 1 ? 'obra' : 'obras'} em {regionais.length} {regionais.length === 1 ? 'regional' : 'regionais'}
+          </div>
+
+          {/* Grid de Regionais */}
+          {isLoading ? (
+            <div className={styles.estadoVazio}>Carregando obras de Belo Horizonte...</div>
+          ) : regionais.length > 0 ? (
+            <div className={styles.regionaisGrid}>
+              {regionais.map(reg => (
+                <Link
+                  key={reg.nome}
+                  href={`/regional/${encodeURIComponent(reg.nome)}`}
+                  className={styles.regionalCard}
+                >
+                  <div className={styles.regionalTopo}>
+                    <div>
                       <div className={styles.regionalNome}>{reg.nome || 'Sem regional'}</div>
                       <div className={styles.regionalContagem}>
                         {reg.totalObras} {reg.totalObras === 1 ? 'obra' : 'obras'}
                       </div>
+                    </div>
+                    {reg.alertas > 0 && (
+                      <span className={styles.regionalAlerta} title={`${reg.alertas} obras com alertas de fiscalização`}>
+                        ⚠ {reg.alertas}
+                      </span>
+                    )}
+                  </div>
 
-                      <div className={styles.regionalMini}>
-                        <div className={styles.regionalMiniItem}>
-                          <span className={styles.regionalMiniLabel}>Valor</span>
-                          <span className={styles.regionalMiniValue}>{formatMoeda(reg.valorTotal)}</span>
-                        </div>
-                        <div className={styles.regionalMiniItem}>
-                          <span className={styles.regionalMiniLabel}>Medido</span>
-                          <span className={styles.regionalMiniValue} style={{ color: 'var(--text-success, #3b6d11)' }}>
-                            {formatMoeda(reg.valorMedido)}
-                          </span>
-                        </div>
-                        <div className={styles.regionalMiniItem}>
-                          <span className={styles.regionalMiniLabel}>Andamento</span>
-                          <span className={styles.regionalMiniValue} style={{ color: 'var(--text-accent)' }}>{reg.emAndamento}</span>
-                        </div>
-                        <div className={styles.regionalMiniItem}>
-                          <span className={styles.regionalMiniLabel}>Concluídas</span>
-                          <span className={styles.regionalMiniValue} style={{ color: 'var(--text-success)' }}>{reg.concluidas}</span>
-                        </div>
-                      </div>
+                  <div className={styles.regionalMini}>
+                    <div className={styles.regionalMiniItem}>
+                      <span className={styles.regionalMiniLabel}>Valor</span>
+                      <span className={styles.regionalMiniValue}>{formatMoeda(reg.valorTotal)}</span>
+                    </div>
+                    <div className={styles.regionalMiniItem}>
+                      <span className={styles.regionalMiniLabel}>Medido</span>
+                      <span className={styles.regionalMiniValue} style={{ color: 'var(--text-success)' }}>
+                        {formatMoeda(reg.valorMedido)}
+                      </span>
+                    </div>
+                    <div className={styles.regionalMiniItem}>
+                      <span className={styles.regionalMiniLabel}>Andamento</span>
+                      <span className={styles.regionalMiniValue} style={{ color: 'var(--text-accent)' }}>{reg.emAndamento}</span>
+                    </div>
+                    <div className={styles.regionalMiniItem}>
+                      <span className={styles.regionalMiniLabel}>Concluídas</span>
+                      <span className={styles.regionalMiniValue} style={{ color: 'var(--text-success)' }}>{reg.concluidas}</span>
+                    </div>
+                  </div>
 
-                      <div className={styles.regionalProgress}>
-                        <div className={styles.regionalProgressBar}>
-                          <div
-                            className={styles.regionalProgressFill}
-                            style={{ width: `${reg.pctExecucao}%` }}
-                          />
-                        </div>
-                        <span className={styles.regionalProgressText}>{reg.pctExecucao}%</span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-                  Nenhuma obra encontrada com esses filtros
-                </div>
-              )}
-            </>
+                  <div className={styles.regionalProgress}>
+                    <div className={styles.regionalProgressBar}>
+                      <div
+                        className={styles.regionalProgressFill}
+                        style={{ width: `${Math.min(reg.pctExecucao, 100)}%` }}
+                      />
+                    </div>
+                    <span className={styles.regionalProgressText}>{reg.pctExecucao}%</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.estadoVazio}>Nenhuma obra encontrada com esses filtros</div>
           )}
+        </>
+      )}
 
-        </main>
-
-        <footer className={styles.footer}>
-          <p>
-            <strong>ObrasBH</strong> — Transparência para uma cidade melhor
-          </p>
-          <p>
-            Dados sincronizados do painel Transparência Obras Públicas da SMOBI/PBH.
-          </p>
-
-          <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              style={{
-                padding: '8px 20px',
-                fontSize: '13px',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                background: syncing ? 'var(--surface-0)' : 'var(--surface-2)',
-                color: 'var(--text-primary)',
-                cursor: syncing ? 'wait' : 'pointer',
-                transition: 'all 0.15s',
-              }}
-            >
-              {syncing ? 'Sincronizando...' : 'Atualizar dados da PBH'}
-            </button>
-            {syncResult && (
-              <span style={{ fontSize: '12px', color: syncResult.startsWith('Erro') ? 'var(--text-danger)' : 'var(--text-success)' }}>
-                {syncResult}
-              </span>
-            )}
-          </div>
-
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '1rem' }}>
-            Fonte: CSV CONTRATOS-SGEE — Atualização semanal pela PBH
-          </p>
-        </footer>
+      {/* Sincronização */}
+      <div className={styles.syncArea}>
+        <button onClick={handleSync} disabled={syncing} className={styles.syncBtn}>
+          {syncing ? 'Sincronizando...' : 'Atualizar dados da PBH'}
+        </button>
+        {syncResult && (
+          <span
+            className={styles.syncResultado}
+            style={{ color: syncResult.startsWith('Erro') ? 'var(--text-danger)' : 'var(--text-success)' }}
+          >
+            {syncResult}
+          </span>
+        )}
+        <p className={styles.syncFonte}>
+          Fonte: CSV CONTRATOS-SGEE — atualização semanal pela PBH
+        </p>
       </div>
-    </>
+    </Layout>
   )
 }

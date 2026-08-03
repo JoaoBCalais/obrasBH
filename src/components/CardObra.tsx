@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { formatMoeda, STATUS_LABELS, STATUS_CORES } from '@/lib/format'
 import { useParalizacoes } from '@/hooks/useParalizacoes'
+import { AnaliseRisco, NIVEL_LABELS } from '@/lib/risco'
 import styles from '@/styles/CardObra.module.css'
 
 interface CardObraProps {
@@ -29,15 +30,15 @@ interface CardObraProps {
     motivoParalisacao: string | null
     id_area_empreendimento: string
   }
+  /** Análise de indícios calculada pela página (opcional) */
+  analise?: AnaliseRisco
 }
 
-export function CardObra({ obra }: CardObraProps) {
+export function CardObra({ obra, analise }: CardObraProps) {
   const [mostrarRelato, setMostrarRelato] = useState(false)
-  console.log("🏗️ CardObra renderizado. ID Area:", obra.id_area_empreendimento, "ID:", obra.id)
   const [relato, setRelato] = useState('')
 
-  // ✅ CORRIGIDO: usar id_area_empreendimento em vez de id
-  const { paralizacoes, paralizacaoAtiva, totalParalizacoes, totalDiasParalisado } = useParalizacoes(obra.id_area_empreendimento)
+  const { paralizacaoAtiva, totalParalizacoes, totalDiasParalisado } = useParalizacoes(obra.id_area_empreendimento)
 
   const atrasoDias = obra.diasAditivados || 0
 
@@ -89,6 +90,8 @@ export function CardObra({ obra }: CardObraProps) {
     )
   }
 
+  const mostraAlerta = analise && (analise.nivel === 'critico' || analise.nivel === 'atencao')
+
   return (
     <div className={styles.card}>
       <div className={styles.header}>
@@ -100,26 +103,25 @@ export function CardObra({ obra }: CardObraProps) {
             {obra.empresa && obra.empresa !== 'Não informado' ? obra.empresa : `Regional ${obra.regional}`}
           </p>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+        <div className={styles.headerBadges}>
           <span
             className={styles.status}
             style={{ backgroundColor: statusData.bg, color: statusData.text }}
           >
             {statusLabel}
           </span>
-          {totalParalizacoes > 0 && (
+          {mostraAlerta && (
             <span
-              className={styles.badgeParalizacoes}
-              style={{
-                backgroundColor: '#fff3cd',
-                color: '#856404',
-                padding: '2px 8px',
-                borderRadius: '4px',
-                fontSize: '12px',
-                fontWeight: 500,
-              }}
+              className={styles.badgeRisco}
+              data-nivel={analise!.nivel}
+              title={analise!.alertas.map(a => a.titulo).join(' · ')}
             >
-              Paralizações: {totalParalizacoes}
+              ⚠ {NIVEL_LABELS[analise!.nivel]}
+            </span>
+          )}
+          {totalParalizacoes > 0 && (
+            <span className={styles.badgeParalizacoes}>
+              Paralisações: {totalParalizacoes}
               {totalDiasParalisado > 0 && ` (${totalDiasParalisado}d)`}
             </span>
           )}
@@ -184,11 +186,23 @@ export function CardObra({ obra }: CardObraProps) {
         </div>
       </div>
 
+      {/* Alertas de fiscalização */}
+      {mostraAlerta && analise!.alertas.length > 0 && (
+        <div className={styles.avisoRisco} data-nivel={analise!.nivel}>
+          <strong>{analise!.alertas[0].titulo}</strong>
+          {analise!.alertas.length > 1 && (
+            <> e mais {analise!.alertas.length - 1} {analise!.alertas.length - 1 === 1 ? 'indício' : 'indícios'}</>
+          )}
+          {' — '}
+          <Link href={`/obra/${obra.id}`}>ver detalhes</Link>
+        </div>
+      )}
+
       {/* Aviso de paralisação */}
       {(obra.status === 'PARALISADA' || paralizacaoAtiva) && (
         <div className={styles.avisoParalisada}>
           <strong>
-            {totalParalizacoes === 1 ? 'Paralisada' : `${totalParalizacoes} paralizações`}:
+            {totalParalizacoes > 1 ? `${totalParalizacoes} paralisações` : 'Paralisada'}:
           </strong>
           {' '}
           {getParalizacaoTexto(paralizacaoAtiva || {})}

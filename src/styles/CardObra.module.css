@@ -262,3 +262,112 @@
   margin-bottom: 12px;
   line-height: 1.5;
 }
+
+/* === Badges do cabeçalho (v2) === */
+
+.headerBadges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.badgeParalizacoes {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-warning);
+  color: var(--text-warning);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badgeRisco {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.badgeRisco[data-nivel='critico'] {
+  background: var(--risk-critico-bg);
+  color: var(--risk-critico-text);
+  border: 1px solid var(--risk-critico-border);
+}
+
+.badgeRisco[data-nivel='atencao'] {
+  background: var(--risk-atencao-bg);
+  color: var(--risk-atencao-text);
+  border: 1px solid var(--risk-atencao-border);
+}
+
+.avisoRisco {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.avisoRisco[data-nivel='critico'] {
+  background: var(--risk-critico-bg);
+  color: var(--risk-critico-text);
+  border: 1px solid var(--risk-critico-border);
+}
+
+.avisoRisco[data-nivel='critico'] a {
+  color: var(--risk-critico-text);
+  text-decoration: underline;
+}
+
+.avisoRisco[data-nivel='atencao'] {
+  background: var(--risk-atencao-bg);
+  color: var(--risk-atencao-text);
+  border: 1px solid var(--risk-atencao-border);
+}
+
+.avisoRisco[data-nivel='atencao'] a {
+  color: var(--risk-atencao-text);
+  text-decoration: underline;
+}
+
+/* === Mobile === */
+
+@media (max-width: 560px) {
+  .card {
+    padding: 1rem;
+  }
+
+  .metricas {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 8px;
+  }
+
+  .header {
+    flex-direction: column;
+  }
+
+  .headerBadges {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .acoes {
+    gap: 8px;
+  }
+
+  .botaoPrimario, .botao {
+    flex: 1;
+    text-align: center;
+    padding: 10px 12px;
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
