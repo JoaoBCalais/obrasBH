@@ -1,0 +1,592 @@
+/* ===== Topo ===== */
+
+.topo {
+  margin-bottom: 18px;
+}
+
+.titulo {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+
+.subtitulo {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  max-width: 680px;
+  margin: 0;
+}
+
+/* ===== KPIs ===== */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.kpi {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.kpi[data-tom='atencao'] {
+  background: var(--risk-atencao-bg);
+  border-color: var(--risk-atencao-border);
+}
+
+.kpi[data-tom='atencao'] .kpiValue {
+  color: var(--risk-atencao-text);
+}
+
+.kpiLabel {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.kpiValue {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.kpiExtra {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ===== Barra de ferramentas ===== */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.buscaInput {
+  flex: 1 1 240px;
+  min-width: 0;
+  padding: 10px 14px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.buscaInput:focus {
+  outline: none;
+  border-color: var(--border-accent);
+  background: var(--surface-2);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--fill-accent);
+  cursor: pointer;
+}
+
+.limparBtn {
+  padding: 10px 14px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-accent);
+}
+
+.limparBtn:hover {
+  background: var(--surface-1);
+}
+
+.contagem {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.estadoVazio {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-muted);
+}
+
+/* ===== Tabela ===== */
+
+.tabelaWrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+  margin-bottom: 14px;
+}
+
+.tabela {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tabela thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-strong);
+  padding: 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.thRank {
+  width: 42px;
+  padding: 10px 8px 10px 14px !important;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.thNum {
+  text-align: right !important;
+}
+
+.thBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 11px 12px;
+  background: none;
+  border: none;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.thNum .thBtn {
+  justify-content: flex-end;
+}
+
+.thBtn:hover {
+  color: var(--text-primary);
+}
+
+.thBtnAtivo {
+  color: var(--text-accent);
+}
+
+.thSeta {
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+.linha {
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.linha:hover {
+  background: var(--surface-2);
+}
+
+.linhaAtiva {
+  background: var(--bg-accent) !important;
+}
+
+.linha td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.tdRank {
+  padding-left: 14px !important;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tdNum {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.tdNome {
+  min-width: 240px;
+  max-width: 360px;
+}
+
+.nomeEmpresa {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.flagResumo {
+  display: block;
+  font-size: 11.5px;
+  color: var(--risk-atencao-text);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pct {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.pct[data-alto='sim'] {
+  color: var(--risk-critico-text);
+  background: var(--risk-critico-bg);
+  border: 1px solid var(--risk-critico-border);
+  border-radius: 6px;
+  padding: 1px 7px;
+}
+
+.alertaConta {
+  font-weight: 700;
+  color: var(--risk-atencao-text);
+}
+
+.barraMini {
+  display: inline-block;
+  width: 44px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--surface-0);
+  overflow: hidden;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.barraMiniFill {
+  display: block;
+  height: 100%;
+  background: var(--fill-accent);
+  border-radius: 3px;
+}
+
+.pctTexto {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ===== Linha expandida ===== */
+
+.linhaDetalhe td {
+  padding: 0 14px 16px;
+  background: var(--bg-accent);
+  border-bottom: 1px solid var(--border);
+}
+
+.flags {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 12px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.flags li {
+  font-size: 12.5px;
+  color: var(--risk-atencao-text);
+  background: var(--risk-atencao-bg);
+  border: 1px solid var(--risk-atencao-border);
+  border-radius: 8px;
+  padding: 5px 10px;
+  line-height: 1.4;
+}
+
+.contratosLista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.contratoItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 12px;
+  text-decoration: none !important;
+  color: inherit;
+}
+
+.contratoItem:hover {
+  border-color: var(--border-accent);
+  background: var(--surface-2);
+}
+
+.contratoNome {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.contratoMeta {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.contratoChips {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.chipNivel {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.chipNivel[data-nivel='critico'] {
+  background: var(--risk-critico-bg);
+  color: var(--risk-critico-text);
+  border: 1px solid var(--risk-critico-border);
+}
+
+.chipNivel[data-nivel='atencao'] {
+  background: var(--risk-atencao-bg);
+  color: var(--risk-atencao-text);
+  border: 1px solid var(--risk-atencao-border);
+}
+
+.statusPill {
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ===== Cards (mobile) ===== */
+
+.cards {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.card[data-alerta='sim'] {
+  border-left-color: var(--risk-atencao-text);
+}
+
+.cardBtn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 12px 14px;
+}
+
+.cardTopo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.cardRank {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cardNome {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.cardSeta {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.cardNumeros {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.cardNumeros > span {
+  display: flex;
+  flex-direction: column;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardNumeros em {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.cardDetalhe {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.cardDetalhe .flags {
+  padding-top: 12px;
+}
+
+.verMais {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+}
+
+.verMais:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+  background: var(--surface-1);
+}
+
+/* ===== Metodologia ===== */
+
+.secaoTitulo {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+
+.metodologia {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  margin-bottom: 1rem;
+}
+
+.metodologia p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ===== Responsivo ===== */
+
+@media (min-width: 640px) {
+  .kpis {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+}
+
+@media (max-width: 860px) {
+  .tabelaWrap {
+    display: none;
+  }
+
+  .cards {
+    display: flex;
+  }
+}
+
+@media (max-width: 480px) {
+  .titulo {
+    font-size: 23px;
+  }
+
+  .cardNumeros {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .toggle,
+  .limparBtn {
+    flex: 1 1 46%;
+  }
+}

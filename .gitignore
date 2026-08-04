@@ -18,3 +18,5 @@ yarn-error.log*
 *.swo
 *~
 Thumbs.db
+tsconfig.tsbuildinfo
+_to_delete/

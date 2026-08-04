@@ -10,7 +10,7 @@ interface LayoutProps {
   title?: string
   /** Meta description */
   description?: string
-  /** Quantidade de obras em nível crítico (mostra selo no link do Radar) */
+  /** Quantidade de obras em nível crítico (mostra selo no link de Obras críticas) */
   alertasCriticos?: number
   /** Hero grande na home; páginas internas usam o header compacto */
   hero?: ReactNode
@@ -18,7 +18,9 @@ interface LayoutProps {
 
 const NAV_LINKS = [
   { href: '/', label: 'Início' },
-  { href: '/radar', label: 'Radar' },
+  { href: '/criticas', label: 'Obras críticas' },
+  { href: '/empresas', label: 'Empresas' },
+  { href: '/regionais', label: 'Regionais' },
 ]
 
 export function Layout({ children, title, description, alertasCriticos = 0, hero }: LayoutProps) {
@@ -43,7 +45,9 @@ export function Layout({ children, title, description, alertasCriticos = 0, hero
               {NAV_LINKS.map(link => {
                 const ativo = link.href === '/'
                   ? router.pathname === '/'
-                  : router.pathname.startsWith(link.href)
+                  : router.pathname.startsWith(link.href) ||
+                    (link.href === '/criticas' && router.pathname.startsWith('/radar')) ||
+                    (link.href === '/regionais' && router.pathname.startsWith('/regional'))
                 return (
                   <Link
                     key={link.href}
@@ -52,7 +56,7 @@ export function Layout({ children, title, description, alertasCriticos = 0, hero
                     aria-current={ativo ? 'page' : undefined}
                   >
                     {link.label}
-                    {link.href === '/radar' && alertasCriticos > 0 && (
+                    {link.href === '/criticas' && alertasCriticos > 0 && (
                       <span className={styles.navBadge} title={`${alertasCriticos} obras em nível crítico`}>
                         {alertasCriticos}
                       </span>
@@ -80,7 +84,9 @@ export function Layout({ children, title, description, alertasCriticos = 0, hero
             </p>
             <nav className={styles.footerNav} aria-label="Links do rodapé">
               <Link href="/">Início</Link>
-              <Link href="/radar">Radar de fiscalização</Link>
+              <Link href="/criticas">Obras críticas</Link>
+              <Link href="/empresas">Empresas</Link>
+              <Link href="/regionais">Regionais</Link>
             </nav>
           </div>
         </footer>
