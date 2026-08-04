@@ -10,10 +10,11 @@
  */
 
 import type { Obra } from '@/hooks/useObras'
+import type { IndicadorObra } from '@/hooks/useIndicadores'
 
 export type Severidade = 'alta' | 'media' | 'baixa'
 
-export type CategoriaAlerta = 'financeiro' | 'prazo' | 'paralisacao' | 'transparencia'
+export type CategoriaAlerta = 'financeiro' | 'prazo' | 'paralisacao' | 'transparencia' | 'execucao'
 
 export interface AlertaRisco {
   id: string
@@ -44,7 +45,11 @@ export const CATEGORIA_LABELS: Record<CategoriaAlerta, string> = {
   prazo: 'Prazo',
   paralisacao: 'Paralisação',
   transparencia: 'Transparência',
+  execucao: 'Execução',
 }
+
+/** Meses sem nenhuma medição a partir dos quais a obra é tratada como estagnada. */
+export const MESES_ESTAGNACAO = 6
 
 /** Limite de referência para aditivos em obras (art. 125 da Lei 14.133/2021: 25%) */
 export const LIMITE_LEGAL_ADITIVO_PCT = 25
@@ -67,10 +72,28 @@ function diasEntre(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 86400000)
 }
 
+/** "março de 2024" — para descrever quando foi a última medição. */
+function formatMesAno(d: string | null | undefined): string {
+  const dt = parseDate(d)
+  if (!dt) return 'data não informada'
+  return dt.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+}
+
+/** Formatação curta de moeda para os textos dos alertas. */
+function moeda(v: number): string {
+  if (v >= 1e6) return `R$ ${(v / 1e6).toFixed(1)} mi`
+  if (v >= 1e3) return `R$ ${(v / 1e3).toFixed(0)} mil`
+  return `R$ ${v.toFixed(0)}`
+}
+
 /**
  * Analisa uma obra (linha crua do banco) e devolve o score + alertas.
  */
-export function analisarObra(obra: Obra, hoje: Date = new Date()): AnaliseRisco {
+export function analisarObra(
+  obra: Obra,
+  indicador?: IndicadorObra | null,
+  hoje: Date = new Date()
+): AnaliseRisco {
   const alertas: AlertaRisco[] = []
 
   const status = norm(obra.status)
@@ -82,7 +105,23 @@ export function analisarObra(obra: Obra, hoje: Date = new Date()): AnaliseRisco 
   const valorContrato = Number(obra.valor_contrato) || 0
   const valorAditivo = Number(obra.valor_total_aditivo) || 0
   const valorMedido = Number(obra.valor_total_medicao) || 0
-  const valorAtual = Number(obra.valor_contrato_com_aditivo) || (valorContrato + valorAditivo)
+
+  // Acréscimos de escopo — vêm das renovações, não do CSV de contratos.
+  const acrescimos = indicador && indicador.num_renovacoes > 0
+    ? Number(indicador.soma_aditivo_renovacoes) || 0
+    : 0
+
+  // Valor atual = original + reajuste + acréscimos.
+  //
+  // NÃO usar `valor_contrato_com_aditivo`: apesar do nome, o sync grava ali a
+  // coluna "Valor Total Medicao E Reajuste" do CSV, que é medição + reajuste.
+  // Usá-lo como denominador dividia medição por medição.
+  //
+  // Esta fórmula foi validada contra os dados reais: com ela, apenas 7 das 925
+  // obras têm medição acima do valor do contrato (0,8% — taxa plausível de
+  // inconsistência real). Usando só `valor_contrato` seriam 128, e a maioria
+  // seria falso positivo causado por aditivo não contabilizado.
+  const valorAtual = valorContrato + valorAditivo + acrescimos
 
   const dataInicio = parseDate(obra.data_inicio_cnt)
   const prazoOriginal = parseDate(obra.data_fim_cnt_original)
@@ -97,7 +136,18 @@ export function analisarObra(obra: Obra, hoje: Date = new Date()): AnaliseRisco 
   )
 
   const pctExec = valorAtual > 0 ? (valorMedido / valorAtual) * 100 : 0
-  const aditivoPct = valorContrato > 0 ? (valorAditivo / valorContrato) * 100 : 0
+
+  // `obra.valor_total_aditivo` vem da coluna "Valor Total Reajuste" do CSV —
+  // é correção inflacionária, não acréscimo de escopo. O teto de 25% do
+  // art. 125 da Lei 14.133 se aplica só ao segundo. Quando a obra tem
+  // renovações registradas, elas são a fonte correta (as duas só coincidem
+  // em 9,8% dos casos).
+  const aditivoReal = indicador && indicador.num_renovacoes > 0 ? acrescimos : null
+  const baseAditivo = aditivoReal !== null ? aditivoReal : valorAditivo
+  const aditivoPct = valorContrato > 0 ? (baseAditivo / valorContrato) * 100 : 0
+  const fonteAditivo = aditivoReal !== null
+    ? `somando as ${indicador!.num_renovacoes} renovações registradas`
+    : 'segundo o reajuste publicado no CSV de contratos'
 
   // ---------- FINANCEIRO ----------
 
@@ -108,7 +158,7 @@ export function analisarObra(obra: Obra, hoje: Date = new Date()): AnaliseRisco 
       severidade: 'alta',
       pontos: 30,
       titulo: 'Aditivos acima do limite legal de referência',
-      descricao: `Os aditivos somam +${Math.round(aditivoPct)}% do valor original do contrato. A Lei 14.133/2021 usa 25% como teto de referência para acréscimos em obras — acima disso, a contratação merece escrutínio.`,
+      descricao: `Os acréscimos somam +${Math.round(aditivoPct)}% do valor original do contrato (${fonteAditivo}). A Lei 14.133/2021 usa 25% como teto de referência para acréscimos em obras — acima disso, a contratação merece escrutínio.`,
     })
   } else if (valorContrato > 0 && aditivoPct > 10) {
     alertas.push({
@@ -117,7 +167,7 @@ export function analisarObra(obra: Obra, hoje: Date = new Date()): AnaliseRisco 
       severidade: 'media',
       pontos: 12,
       titulo: 'Aditivos elevados',
-      descricao: `O contrato já cresceu +${Math.round(aditivoPct)}% sobre o valor original por meio de aditivos.`,
+      descricao: `O contrato já cresceu +${Math.round(aditivoPct)}% sobre o valor original (${fonteAditivo}).`,
     })
   }
 
@@ -134,15 +184,23 @@ export function analisarObra(obra: Obra, hoje: Date = new Date()): AnaliseRisco 
 
   // ---------- PRAZO ----------
 
+  // 58% das obras ativas estão com o prazo vencido — um alerta que dispara em
+  // mais da metade da base não separa nada. Por isso a pontuação é escalonada:
+  // o que distingue é HÁ QUANTO TEMPO venceu, não o fato de ter vencido.
   if (prazoAtual && prazoAtual < hoje && !encerrada && !temParalisacao) {
     const diasVencidos = diasEntre(prazoAtual, hoje)
+    const anos = Math.floor(diasVencidos / 365)
+    const grave = diasVencidos > 730
+    const medio = diasVencidos > 365
     alertas.push({
       id: 'prazo_estourado',
       categoria: 'prazo',
-      severidade: diasVencidos > 180 ? 'alta' : 'media',
-      pontos: diasVencidos > 180 ? 22 : 14,
-      titulo: `Prazo vencido há ${diasVencidos} dias`,
-      descricao: `O contrato previa conclusão em ${prazoAtual.toLocaleDateString('pt-BR')} (já contando as prorrogações) e a obra segue sem constar como concluída.`,
+      severidade: grave ? 'alta' : medio ? 'media' : 'baixa',
+      pontos: grave ? 26 : medio ? 14 : 6,
+      titulo: grave
+        ? `Prazo vencido há mais de ${anos} anos`
+        : `Prazo vencido há ${diasVencidos} dias`,
+      descricao: `O contrato previa conclusão em ${prazoAtual.toLocaleDateString('pt-BR')} (já contando as prorrogações) e a obra segue sem constar como concluída.${grave ? ' Atraso dessa ordem costuma significar que o cronograma original perdeu qualquer relação com a realidade.' : ''}`,
     })
   }
 
@@ -174,14 +232,18 @@ export function analisarObra(obra: Obra, hoje: Date = new Date()): AnaliseRisco 
   // ---------- PARALISAÇÃO ----------
 
   if (temParalisacao && !encerrada) {
+    // `previsao_reinicio` está 0% preenchido no banco — a PBH não publica esse
+    // campo. Como o alerta disparava em 100% das paralisadas com peso alto, ele
+    // não media risco da obra, media ausência de dado. Rebaixado a observação
+    // de transparência: continua sendo informação útil, sem inflar o score.
     if (!obra.previsao_reinicio) {
       alertas.push({
         id: 'paralisada_sem_previsao',
-        categoria: 'paralisacao',
-        severidade: 'alta',
-        pontos: 18,
-        titulo: 'Paralisada sem previsão de reinício',
-        descricao: 'A obra está paralisada e não há nenhuma data de reinício registrada nos dados públicos.',
+        categoria: 'transparencia',
+        severidade: 'baixa',
+        pontos: 4,
+        titulo: 'Sem previsão de reinício publicada',
+        descricao: 'A obra está paralisada e não há data de reinício nos dados abertos. A PBH não publica esse campo para nenhuma obra — o que, por si só, é uma lacuna de transparência.',
       })
     }
     const temMotivo = Boolean(
@@ -228,6 +290,10 @@ export function analisarObra(obra: Obra, hoje: Date = new Date()): AnaliseRisco 
     })
   }
 
+  // pct_execucao_pbh está 0% preenchido hoje (nenhum sync escreve nessa coluna).
+  // A regra fica no lugar, inerte, para passar a valer sozinha caso a PBH
+  // publique o percentual de execução física — aí a divergência entre o físico
+  // e o financeiro vira um dos indícios mais fortes possíveis.
   const pctPbh = obra.pct_execucao_pbh != null ? Number(obra.pct_execucao_pbh) : null
   if (pctPbh != null && valorAtual > 0 && Math.abs(pctPbh - pctExec) > 20) {
     alertas.push({
@@ -275,9 +341,129 @@ export function analisarObra(obra: Obra, hoje: Date = new Date()): AnaliseRisco 
     })
   }
 
+  // ============================================================
+  // INDÍCIOS VINDOS DAS TABELAS SATÉLITE (view obra_indicadores)
+  // Só rodam quando a migração v3 foi aplicada e há dado para a obra.
+  // ============================================================
+
+  if (indicador) {
+    // ---------- ESTAGNAÇÃO ----------
+    // O indício mais forte que os dados permitem: obra ativa, dinheiro
+    // contratado, e nenhuma medição há meses. É obra parada de fato, sem
+    // estar registrada como paralisada. 227 obras se enquadram hoje.
+    if (!encerrada && !temParalisacao && valorContrato > 0) {
+      const meses = indicador.meses_sem_medicao
+
+      if (indicador.total_medicoes === 0 && dataInicio && diasEntre(dataInicio, hoje) > 180) {
+        alertas.push({
+          id: 'nunca_medida',
+          categoria: 'execucao',
+          severidade: 'alta',
+          pontos: 28,
+          titulo: 'Nenhuma medição desde o início do contrato',
+          descricao: `O contrato começou há ${Math.floor(diasEntre(dataInicio, hoje) / 30)} meses e não há uma única medição registrada. Ou a obra nunca saiu do papel, ou a execução não está sendo publicada.`,
+        })
+      } else if (meses != null && meses >= MESES_ESTAGNACAO) {
+        const anos = Math.floor(meses / 12)
+        const grave = meses >= 24
+        alertas.push({
+          id: 'estagnada',
+          categoria: 'execucao',
+          severidade: grave ? 'alta' : 'media',
+          pontos: grave ? 25 : 15,
+          titulo: grave
+            ? `Sem medição há mais de ${anos} ${anos === 1 ? 'ano' : 'anos'}`
+            : `Sem medição há ${meses} meses`,
+          descricao: `A última medição registrada é de ${formatMesAno(indicador.ultima_medicao)}. A obra continua ativa e com ${Math.round(pctExec)}% do valor executado, mas não avança há ${meses} meses — sem constar como paralisada.`,
+        })
+      }
+    }
+
+    // ---------- ADITIVO EM SALAME ----------
+    // Vários acréscimos pequenos ao longo do tempo, somando perto do teto de
+    // 25% sem ultrapassá-lo. O fatiamento é justamente o padrão que escapa de
+    // uma regra que só olha o total.
+    if (
+      indicador.num_renovacoes >= 2 &&
+      aditivoPct > 15 && aditivoPct <= LIMITE_LEGAL_ADITIVO_PCT &&
+      valorContrato > 0
+    ) {
+      alertas.push({
+        id: 'aditivo_fatiado',
+        categoria: 'financeiro',
+        severidade: 'media',
+        pontos: 16,
+        titulo: 'Acréscimos sucessivos logo abaixo do teto legal',
+        descricao: `Foram ${indicador.num_renovacoes} renovações que somam +${Math.round(aditivoPct)}% — perto do limite de ${LIMITE_LEGAL_ADITIVO_PCT}%, mas sem ultrapassá-lo. Acréscimos fatiados podem ter explicação técnica, mas também são a forma conhecida de crescer um contrato sem acionar o teto.`,
+      })
+    }
+
+    if (indicador.num_renovacoes >= 4) {
+      alertas.push({
+        id: 'muitas_renovacoes',
+        categoria: 'financeiro',
+        severidade: 'media',
+        pontos: 12,
+        titulo: `${indicador.num_renovacoes} renovações no mesmo contrato`,
+        descricao: `Um contrato renovado ${indicador.num_renovacoes} vezes sugere que o projeto original subestimou prazo, custo ou escopo — ou que a licitação virou uma relação de longo prazo sem nova disputa.`,
+      })
+    }
+
+    // ---------- DESCOLAMENTO FINANCEIRO ----------
+    // Empenhado é dinheiro reservado; pago é dinheiro que saiu. A distância
+    // entre os dois antecede paralisação por falta de caixa.
+    const pctPago = indicador.pct_pago_sobre_empenhado
+    if (pctPago != null && !encerrada && indicador.empenhado > 0) {
+      const naoPago = indicador.empenhado - indicador.pago
+      if (pctPago < 50 && naoPago > 100000) {
+        alertas.push({
+          id: 'empenhado_nao_pago',
+          categoria: 'financeiro',
+          severidade: 'alta',
+          pontos: 20,
+          titulo: 'Menos da metade do empenhado foi pago',
+          descricao: `Foram empenhados ${moeda(indicador.empenhado)} e pagos apenas ${moeda(indicador.pago)} (${pctPago}%). Dinheiro reservado que não sai costuma anteceder atraso ou paralisação por falta de repasse.`,
+        })
+      } else if (pctPago < 75 && naoPago > 500000) {
+        alertas.push({
+          id: 'empenhado_pouco_pago',
+          categoria: 'financeiro',
+          severidade: 'media',
+          pontos: 10,
+          titulo: 'Pagamento bem abaixo do empenhado',
+          descricao: `${moeda(naoPago)} empenhados ainda não foram pagos (${pctPago}% do total saiu).`,
+        })
+      }
+    }
+
+    // ---------- SERVIÇO FEITO E NÃO PAGO ----------
+    // Medição é serviço conferido e aprovado por fiscal. Se o pagamento não
+    // acompanha, a empresa está bancando obra pública com capital próprio —
+    // o que costuma terminar em paralisação ou pedido de reequilíbrio.
+    if (
+      indicador.pago > 0 && valorMedido > 0 && !encerrada &&
+      valorMedido > indicador.pago * 1.2 &&
+      valorMedido - indicador.pago > 500000
+    ) {
+      alertas.push({
+        id: 'medido_nao_pago',
+        categoria: 'financeiro',
+        severidade: 'alta',
+        pontos: 18,
+        titulo: 'Serviço medido e ainda não pago',
+        descricao: `Já foram medidos ${moeda(valorMedido)} — serviço conferido e aprovado por fiscal — mas os pagamentos somam ${moeda(indicador.pago)}. São ${moeda(valorMedido - indicador.pago)} de defasagem.`,
+      })
+    }
+  }
+
   const score = Math.min(100, alertas.reduce((s, a) => s + a.pontos, 0))
+
+  // Limiares recalibrados junto com a entrada dos indícios de execução.
+  // Com o corte antigo (45/20), o conjunto novo de regras classificava 199
+  // obras como críticas — 21% da base. "Crítico" que vale para uma em cada
+  // cinco obras não orienta ninguém sobre por onde começar.
   const nivel: NivelRisco =
-    score >= 45 ? 'critico' : score >= 20 ? 'atencao' : score > 0 ? 'observacao' : 'ok'
+    score >= 60 ? 'critico' : score >= 30 ? 'atencao' : score > 0 ? 'observacao' : 'ok'
 
   return { score, nivel, alertas }
 }
@@ -299,7 +485,8 @@ export interface EmpresaResumo {
 
 export function analisarEmpresas(
   obras: Obra[],
-  analises: Map<number, AnaliseRisco>
+  analises: Map<number, AnaliseRisco>,
+  indicadores?: Map<number, IndicadorObra>
 ): EmpresaResumo[] {
   const total = obras.reduce((s, o) => s + (Number(o.valor_contrato) || 0), 0)
   const porEmpresa = new Map<string, Obra[]>()
@@ -314,7 +501,12 @@ export function analisarEmpresas(
   const resumos: EmpresaResumo[] = []
   porEmpresa.forEach((lista, empresa) => {
     const valorTotal = lista.reduce((s, o) => s + (Number(o.valor_contrato) || 0), 0)
-    const valorAditivos = lista.reduce((s, o) => s + (Number(o.valor_total_aditivo) || 0), 0)
+    // Preferir o acréscimo real das renovações ao reajuste do CSV de contratos.
+    const valorAditivos = lista.reduce((s, o) => {
+      const ind = indicadores?.get(o.id)
+      const real = ind && ind.num_renovacoes > 0 ? Number(ind.soma_aditivo_renovacoes) || 0 : null
+      return s + (real !== null ? real : Number(o.valor_total_aditivo) || 0)
+    }, 0)
     const aditivoPct = valorTotal > 0 ? (valorAditivos / valorTotal) * 100 : 0
     const obrasComAlerta = lista.filter(o => {
       const a = analises.get(o.id)
@@ -356,7 +548,10 @@ export interface GapDados {
   pct: number
 }
 
-export function analisarGaps(obras: Obra[]): GapDados[] {
+export function analisarGaps(
+  obras: Obra[],
+  indicadores?: Map<number, IndicadorObra>
+): GapDados[] {
   const n = obras.length || 1
   const ativos = obras.filter(o => {
     const s = norm(o.status)
@@ -411,6 +606,34 @@ export function analisarGaps(obras: Obra[]): GapDados[] {
       pct: paralisadas.length ? Math.round((paralisadasSemPrevisao / paralisadas.length) * 100) : 0,
     },
   ]
+
+  if (indicadores && indicadores.size > 0) {
+    const semExecFin = ativos.filter(o => {
+      const i = indicadores.get(o.id)
+      return !i || i.empenhado <= 0
+    }).length
+    gaps.push({
+      id: 'sem_execucao_financeira',
+      titulo: 'Contratos ativos sem dado de empenho e pagamento',
+      descricao: 'Sem execução financeira publicada, não dá para saber se o dinheiro chegou a sair do caixa.',
+      quantidade: semExecFin,
+      pct: Math.round((semExecFin / Math.max(1, ativos.length)) * 100),
+    })
+
+    const semJustificativa = obras.filter(o => {
+      const i = indicadores.get(o.id)
+      return i && i.num_renovacoes > 0
+    }).length
+    if (semJustificativa > 0) {
+      gaps.push({
+        id: 'renovacao_sem_justificativa',
+        titulo: 'Renovações sem justificativa publicada',
+        descricao: 'Contratos foram prorrogados, mas o motivo da prorrogação não consta nos dados abertos — nenhum registro traz esse texto.',
+        quantidade: semJustificativa,
+        pct: Math.round((semJustificativa / n) * 100),
+      })
+    }
+  }
 
   return gaps.filter(g => g.quantidade > 0).sort((a, b) => b.quantidade - a.quantidade)
 }

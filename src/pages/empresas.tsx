@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect, Fragment } from 'react'
 import { useRouter } from 'next/router'
 import { Layout } from '@/components/Layout'
 import { useObras, Obra } from '@/hooks/useObras'
+import { useIndicadores } from '@/hooks/useIndicadores'
 import {
   analisarObra,
   analisarEmpresas,
@@ -10,7 +11,7 @@ import {
   NIVEL_LABELS,
   LIMITE_LEGAL_ADITIVO_PCT,
 } from '@/lib/risco'
-import { formatMoeda, normalizeStatus, STATUS_LABELS, STATUS_CORES } from '@/lib/format'
+import { formatMoeda, normalizeStatus, normalizeRegional, STATUS_LABELS, STATUS_CORES } from '@/lib/format'
 import styles from '@/styles/Empresas.module.css'
 
 type Coluna = 'empresa' | 'contratos' | 'valor' | 'aditivo' | 'alertas' | 'participacao'
@@ -27,6 +28,7 @@ const COLUNAS: { id: Coluna; rotulo: string; numerica: boolean; titulo?: string 
 export default function EmpresasPage() {
   const router = useRouter()
   const { obras, isLoading, isError } = useObras()
+  const { indicadores } = useIndicadores()
   const [busca, setBusca] = useState('')
   const [soAlertas, setSoAlertas] = useState(false)
   const [coluna, setColuna] = useState<Coluna>('valor')
@@ -45,11 +47,16 @@ export default function EmpresasPage() {
 
   const analises = useMemo(() => {
     const mapa = new Map<number, AnaliseRisco>()
-    obras.forEach(o => mapa.set(o.id, analisarObra(o)))
+    obras.forEach(o => mapa.set(o.id, analisarObra(o, indicadores.get(o.id))))
     return mapa
-  }, [obras])
+  }, [obras, indicadores])
 
-  const resumos = useMemo(() => analisarEmpresas(obras, analises), [obras, analises])
+  // Passa os indicadores para o aditivo por empresa sair das renovações
+  // (acréscimo real de escopo) em vez do reajuste do CSV de contratos.
+  const resumos = useMemo(
+    () => analisarEmpresas(obras, analises, indicadores),
+    [obras, analises, indicadores]
+  )
 
   // Contratos de cada empresa, para a linha expandida
   const contratosPorEmpresa = useMemo(() => {
@@ -295,7 +302,7 @@ export default function EmpresasPage() {
                                   <Link key={o.id} href={`/obra/${o.id}`} className={styles.contratoItem}>
                                     <span className={styles.contratoNome}>{o.nome}</span>
                                     <span className={styles.contratoMeta}>
-                                      {o.regional || 'Sem regional'}
+                                      {normalizeRegional(o.regional)}
                                       {' · '}
                                       {formatMoeda(Number(o.valor_contrato) || 0)}
                                     </span>
@@ -362,7 +369,7 @@ export default function EmpresasPage() {
                           <Link key={o.id} href={`/obra/${o.id}`} className={styles.contratoItem}>
                             <span className={styles.contratoNome}>{o.nome}</span>
                             <span className={styles.contratoMeta}>
-                              {o.regional || 'Sem regional'} · {formatMoeda(Number(o.valor_contrato) || 0)}
+                              {normalizeRegional(o.regional)} · {formatMoeda(Number(o.valor_contrato) || 0)}
                             </span>
                           </Link>
                         ))}

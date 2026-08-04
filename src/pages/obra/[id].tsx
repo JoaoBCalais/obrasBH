@@ -53,7 +53,8 @@ export default function ObraPage() {
 
   const valorContrato = Number(obra.valor_contrato) || 0
   const valorAditivo = Number(obra.valor_total_aditivo) || 0
-  const valorAtual = Number(obra.valor_contrato_com_aditivo) || valorContrato + valorAditivo
+  // valor_contrato_com_aditivo guarda medição+reajuste, apesar do nome — ver lib/format.ts
+  const valorAtual = valorContrato + valorAditivo
   const valorMedido = Number(obra.valor_total_medicao) || 0
 
   const pctExecucao = valorAtual > 0 ? Math.round((valorMedido / valorAtual) * 100) : 0

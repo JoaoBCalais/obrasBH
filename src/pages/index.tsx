@@ -2,8 +2,9 @@ import Link from 'next/link'
 import { useState, useMemo } from 'react'
 import { Layout } from '@/components/Layout'
 import { useObras } from '@/hooks/useObras'
+import { useIndicadores } from '@/hooks/useIndicadores'
 import { analisarObra, analisarEmpresas, AnaliseRisco, NIVEL_LABELS, LIMITE_LEGAL_ADITIVO_PCT } from '@/lib/risco'
-import { normalizeStatus, formatMoeda, STATUS_LABELS, STATUS_CORES } from '@/lib/format'
+import { normalizeStatus, normalizeRegional, valorAtualDe, formatMoeda, STATUS_LABELS, STATUS_CORES } from '@/lib/format'
 import styles from '@/styles/Home.module.css'
 
 /** Piso de valor para entrar no ranking de aditivos, em reais.
@@ -27,6 +28,7 @@ export default function Home() {
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
   const { obras, isLoading, isError, mutate } = useObras()
+  const { indicadores } = useIndicadores()
 
   async function handleSync() {
     setSyncing(true)
@@ -51,24 +53,31 @@ export default function Home() {
   // Análise de indícios de todas as obras (uma vez por carga)
   const analises = useMemo(() => {
     const mapa = new Map<number, AnaliseRisco>()
-    obras.forEach(o => mapa.set(o.id, analisarObra(o)))
+    obras.forEach(o => mapa.set(o.id, analisarObra(o, indicadores.get(o.id))))
     return mapa
-  }, [obras])
+  }, [obras, indicadores])
 
   // Mapear dados
   const obrasFormatadas = useMemo(() => obras.map(obra => {
+    const ind = indicadores.get(obra.id)
     const valorContrato = Number(obra.valor_contrato) || 0
     const valorMedicao = Number(obra.valor_total_medicao) || 0
-    const valorAditivo = Number(obra.valor_total_aditivo) || 0
+    // Acréscimo de escopo (renovações) quando existe; senão, o reajuste do CSV.
+    const valorAditivo = ind && ind.num_renovacoes > 0
+      ? Number(ind.soma_aditivo_renovacoes) || 0
+      : Number(obra.valor_total_aditivo) || 0
     return {
       id: String(obra.id),
       idNum: obra.id,
-      regional: obra.regional,
+      regional: normalizeRegional(obra.regional),
       status: normalizeStatus(obra.status),
       valorContrato,
       valorMedicao,
       valorAditivo,
-      valorAtual: Number(obra.valor_contrato_com_aditivo) || valorContrato + valorAditivo,
+      mesesSemMedicao: ind ? ind.meses_sem_medicao : null,
+      ultimaMedicao: ind ? ind.ultima_medicao : null,
+      totalMedicoes: ind ? ind.total_medicoes : null,
+      valorAtual: valorAtualDe(obra, ind),
       nome: obra.nome,
       empresa: obra.empresa || '',
       contrato: obra.num_cnt || obra.numero_po || '',
@@ -76,7 +85,7 @@ export default function Home() {
       dataParalisacao: obra.data_paralisacao || null,
       diasAditivados: Number(obra.numero_dias_aditivados) || 0,
     }
-  }), [obras])
+  }), [obras, indicadores])
 
   // Resumo de risco
   const risco = useMemo(() => {
@@ -126,7 +135,7 @@ export default function Home() {
   const regionais = useMemo(() => {
     const mapa: Record<string, { total: number; alertas: number; valor: number }> = {}
     obrasFormatadas.forEach(obra => {
-      const reg = obra.regional || 'Sem regional'
+      const reg = obra.regional
       if (!mapa[reg]) mapa[reg] = { total: 0, alertas: 0, valor: 0 }
       mapa[reg].total++
       mapa[reg].valor += obra.valorContrato

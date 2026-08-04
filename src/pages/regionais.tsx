@@ -2,8 +2,9 @@ import Link from 'next/link'
 import { useState, useMemo } from 'react'
 import { Layout } from '@/components/Layout'
 import { useObras } from '@/hooks/useObras'
+import { useIndicadores } from '@/hooks/useIndicadores'
 import { analisarObra, AnaliseRisco } from '@/lib/risco'
-import { normalizeStatus, formatMoeda } from '@/lib/format'
+import { normalizeStatus, normalizeRegional, formatMoeda } from '@/lib/format'
 import styles from '@/styles/Home.module.css'
 
 const STATUS_MAP: Record<string, string> = {
@@ -28,18 +29,19 @@ export default function RegionaisPage() {
   const [statusFilter, setStatusFilter] = useState<string>('Todas')
   const [ordem, setOrdem] = useState<Ordem>('obras')
   const { obras, isLoading, isError } = useObras()
+  const { indicadores } = useIndicadores()
 
   const analises = useMemo(() => {
     const mapa = new Map<number, AnaliseRisco>()
-    obras.forEach(o => mapa.set(o.id, analisarObra(o)))
+    obras.forEach(o => mapa.set(o.id, analisarObra(o, indicadores.get(o.id))))
     return mapa
-  }, [obras])
+  }, [obras, indicadores])
 
   const obrasFormatadas = useMemo(() => obras.map(obra => {
     const valorContrato = Number(obra.valor_contrato) || 0
     return {
       idNum: obra.id,
-      regional: obra.regional,
+      regional: normalizeRegional(obra.regional),
       status: normalizeStatus(obra.status),
       valorContrato,
       valorMedicao: Number(obra.valor_total_medicao) || 0,
@@ -71,7 +73,7 @@ export default function RegionaisPage() {
   const regionais = useMemo(() => {
     const mapa: Record<string, typeof filtradas> = {}
     filtradas.forEach(obra => {
-      const reg = obra.regional || 'Sem regional'
+      const reg = obra.regional
       if (!mapa[reg]) mapa[reg] = []
       mapa[reg].push(obra)
     })

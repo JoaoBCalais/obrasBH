@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { useState, useMemo, useEffect } from 'react'
 import { Layout } from '@/components/Layout'
 import { useObras, Obra } from '@/hooks/useObras'
+import { useIndicadores } from '@/hooks/useIndicadores'
 import {
   analisarObra,
   analisarGaps,
@@ -12,7 +13,7 @@ import {
   SEVERIDADE_LABELS,
   LIMITE_LEGAL_ADITIVO_PCT,
 } from '@/lib/risco'
-import { formatMoeda, normalizeStatus, STATUS_LABELS, STATUS_CORES } from '@/lib/format'
+import { formatMoeda, normalizeStatus, normalizeRegional, valorAtualDe, STATUS_LABELS, STATUS_CORES } from '@/lib/format'
 import styles from '@/styles/Criticas.module.css'
 
 type FiltroNivel = 'todos' | 'critico' | 'atencao' | 'observacao'
@@ -59,6 +60,7 @@ interface Linha {
 
 export default function CriticasPage() {
   const { obras, isLoading, isError } = useObras()
+  const { indicadores } = useIndicadores()
   const [filtroNivel, setFiltroNivel] = useState<FiltroNivel>('todos')
   const [filtroCategoria, setFiltroCategoria] = useState<FiltroCategoria>('todas')
   const [filtroRegional, setFiltroRegional] = useState('todas')
@@ -70,29 +72,34 @@ export default function CriticasPage() {
 
   const analisadas = useMemo(() => {
     const mapa = new Map<number, AnaliseRisco>()
-    obras.forEach(o => mapa.set(o.id, analisarObra(o)))
+    obras.forEach(o => mapa.set(o.id, analisarObra(o, indicadores.get(o.id))))
     return mapa
-  }, [obras])
+  }, [obras, indicadores])
 
   const linhasBase = useMemo<Linha[]>(() => obras.map(obra => {
     const analise = analisadas.get(obra.id)!
+    const ind = indicadores.get(obra.id)
     const valorContrato = Number(obra.valor_contrato) || 0
-    const valorAditivo = Number(obra.valor_total_aditivo) || 0
     const valorMedido = Number(obra.valor_total_medicao) || 0
-    const valor = Number(obra.valor_contrato_com_aditivo) || valorContrato + valorAditivo
+    // valor original + reajuste + acréscimos das renovações
+    const valor = valorAtualDe(obra, ind)
+    // Para o teto de 25% conta só o acréscimo de escopo, não o reajuste.
+    const valorAditivo = ind && ind.num_renovacoes > 0
+      ? Number(ind.soma_aditivo_renovacoes) || 0
+      : Number(obra.valor_total_aditivo) || 0
     return {
       obra,
       analise,
       nome: obra.nome || '',
       empresa: obra.empresa || '',
-      regional: obra.regional || 'Sem regional',
+      regional: normalizeRegional(obra.regional),
       status: normalizeStatus(obra.status),
       valor,
       aditivoPct: valorContrato > 0 ? (valorAditivo / valorContrato) * 100 : 0,
       execucaoPct: valor > 0 ? (valorMedido / valor) * 100 : 0,
       indicios: analise ? analise.alertas.length : 0,
     }
-  }).filter(l => l.analise && l.analise.alertas.length > 0), [obras, analisadas])
+  }).filter(l => l.analise && l.analise.alertas.length > 0), [obras, analisadas, indicadores])
 
   const listaRegionais = useMemo(
     () => Array.from(new Set(linhasBase.map(l => l.regional))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
@@ -137,7 +144,7 @@ export default function CriticasPage() {
     return { criticas, atencao, valorSobAlerta, aditivosAcima }
   }, [linhasBase])
 
-  const gaps = useMemo(() => analisarGaps(obras), [obras])
+  const gaps = useMemo(() => analisarGaps(obras, indicadores), [obras, indicadores])
 
   const detalhe = useMemo(
     () => linhas.find(l => l.obra.id === selecionada) || linhasBase.find(l => l.obra.id === selecionada) || null,
